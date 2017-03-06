@@ -17,10 +17,10 @@ Create a symlink to the script.
 
 The script only requires one parameter(-D) to create a virtual host. If only -D is specified, it will use the default configurations for the rest of the setup.
 
-Create a virtual host
+Create a virtual host. You will be asked to confirm the setup configurations before proceeding.
 
 <pre><code>sudo avhs.php -D example.com</code></pre>
 
-See a message showing it's usage instructions
+See a message showing it's usage instructions.
 
 <pre><code>sudo avhs.php --help</code></pre>
