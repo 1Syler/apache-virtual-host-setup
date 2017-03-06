@@ -23,7 +23,7 @@ class Parameters
 	* @var string $projectConFile is the path of the projects .conf file.
 	*             This can be set by the user, the default is /etc/apache2/sites-available/[$projectDir].conf.
 	* @var string $defaultConFile is the path of the apache default vhost config file used to create the project config file.
-    *             This can be set by the user, the default is /etc/apache2/sites-available/000-default.conf.
+	*             This can be set by the user, the default is /etc/apache2/sites-available/000-default.conf.
 	* @var string $apacheConFile is the path the apache default config file used to create access for the $vhostDir.
 	*             This can be set by the user, the default is /etc/apache2/apache2.conf.
 	* @var string $hostsFile is the path of the systems hosts file.
@@ -43,7 +43,7 @@ class Parameters
 	private $fullPathProjectDir;
 	private $projectConFile;
 	private $defaultConFile = "/etc/apache2/sites-available/000-default.conf";
-    private $apacheConFile = "/etc/apache2/apache2.conf";
+	private $apacheConFile = "/etc/apache2/apache2.conf";
 	private $hostsFile = "/etc/hosts";
 	private $domainName;
 	private $vhostIp = "127.0.0.1";
@@ -63,13 +63,13 @@ class Parameters
 	    $this->argc = $argc;
 	    $this->argv = $argv;
 
-        // Check if the help command has been passed in and display the help message if it has.
-        foreach($argv as $arg) {
-            if (strpos($arg, "--help") !== FALSE) {
-                helpMsg();
-                exit;
-            }
-        }
+		// Check if the help command has been passed in and display the help message if it has.
+		foreach($argv as $arg) {
+			if (strpos($arg, "--help") !== FALSE) {
+			helpMsg();
+			exit;
+			}
+		}
 
         // Check if the required -D DOMAIN parameter was passed in and set error if it has not.
         $passed = FALSE;
