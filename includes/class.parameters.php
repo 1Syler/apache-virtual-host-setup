@@ -71,18 +71,18 @@ class Parameters
 			}
 		}
 
-        // Check if the required -D DOMAIN parameter was passed in and set error if it has not.
-        $passed = FALSE;
-        foreach($argv as $arg) {
-            if (strpos($arg, "-D") !== FALSE) {
-                $passed = TRUE;
-                break;
-            }
-        }
-        if(!$passed) {
-            $this->setError("You must include a domain name using the -D parameter\nTry 'avhs.php --help' for more information.");
-            die($this->getError());
-        }
+		// Check if the required -D DOMAIN parameter was passed in and set error if it has not.
+		$passed = FALSE;
+		foreach($argv as $arg) {
+			if (strpos($arg, "-D") !== FALSE) {
+				$passed = TRUE;
+				break;
+			}
+		}
+		if(!$passed) {
+			$this->setError("You must include a domain name using the -D parameter\nTry 'avhs.php --help' for more information.");
+			die($this->getError());
+		}
 	}
 	
 	public function getArgc() {
