@@ -32,6 +32,8 @@ class Parameters
 	*             This must be set by the user, it will set $projectDir, $projectConFile if no arguments are passed in.
 	* @var string $vhostIp is the IP address of the vhost used in the hosts file.
 	*             This can be set by the user, the default is 127.0.0.1.
+	* @var string $bootstrapUrl is the URL of the Bootstrap zip file to download.
+	*              This can be set by the user.
 	*
 	*/
 	private $argc;
@@ -44,9 +46,10 @@ class Parameters
 	private $projectConFile;
 	private $defaultConFile = "/etc/apache2/sites-available/000-default.conf";
     private $apacheConFile = "/etc/apache2/apache2.conf";
-	private $hostsFile = "/etc/hosts";
+    private $hostsFile = "/etc/hosts";
 	private $domainName;
 	private $vhostIp = "127.0.0.1";
+	private $bootstrapUrl;
 
 	/*
 	*
@@ -181,6 +184,14 @@ class Parameters
   		$this->vhostIp = $ip;
 	}
 	
+	public function getBootstrapUrl() {
+  		return $this->bootstrapUrl;
+	}
+	
+	private function setBootstrapUrl($url) {
+  		$this->bootstrapUrl = $url;
+	}
+	
     
 	/**
 	* Check and validate the parameters and arguments that have been passed in and set them. 
@@ -204,7 +215,7 @@ class Parameters
             
             // Check for all the valid parameters.
             if($param == "-p" || $param == "--project-directory") {
-                if(!$this->checkArg($param, $arg, "invalid directory")) {
+                if(!$this->checkArg($param, $arg, "invalid project directory")) {
                     return FALSE;
                 }
                 
@@ -311,6 +322,19 @@ class Parameters
                 // Set the virtual hosts directory.
                 $this->setVhostDir($arg);
             }
+            else if($param == "-B" || $param == "--install-bootstrap") {
+                if(!$this->checkArg($param, $arg, "invalid Bootstrap URL")) {
+                    return FALSE;
+                }
+                
+                // Check if the URL is valid.
+                if(!$this->checkUrl($arg)) {
+                    return FALSE;
+                }
+                
+                // Set the Bootstrap URL.
+                $this->setBootstrapUrl($arg);
+            }
             else {
                 $this->setError("avhs.php: invalid option -- '$param'\nTry 'avhs.php --help' for more information.");
                 return FALSE;
@@ -398,6 +422,20 @@ class Parameters
     private function checkIp($ip) {
         if(!filter_var($ip, FILTER_VALIDATE_IP)) {
             $this->setError("Error '$ip' is not a valid IP address");
+            return FALSE;
+        }
+        return TRUE;
+    }
+    
+	/**
+	* Check if the given URL is valid.
+	*
+	* @param string $url is the URL for downloading Bootstrap.
+	* @return FALSE if there was an error, TRUE otherwise.
+	*/
+    private function checkUrl($url) {
+        if(!filter_var($url, FILTER_VALIDATE_URL)) {
+            $this->setError("Error '$url' is not a valid URL");
             return FALSE;
         }
         return TRUE;

@@ -23,6 +23,15 @@ function configMsg($args) {
     displayMsg("\tHosts file: " . $args->getHostsFile(), "97");
     displayMsg("\tDomain name: " . $args->getDomainName(), "97");
     displayMsg("\tVirtual host IP: " . $args->getVhostIp(), "97");
+
+    // Ask the user if they want to continue with the configurations.
+    $ans = "";
+    while($ans != "Y") {
+        $ans = strtoupper(readline("Do you want to continue with these configurations Y or N?"));
+        if($ans == "N") {
+            die("\033[91mThe virtual host setup was aborted\033[0m\n");
+        }
+    }
 }
 
 // Display the --help message.

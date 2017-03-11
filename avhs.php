@@ -18,17 +18,8 @@ if(!$args->setParams()) {
     die($args->getError());
 }
 
-// Display message showing the configurations to be used for the virtual host.
+// Display message showing the configurations to be used for the virtual host and ask for confirmation.
 configMsg($args);
-
-// Ask the user if they want to continue with the configurations.
-$ans = "";
-while($ans != "Y") {
-    $ans = strtoupper(readline("Do you want to continue with these configurations Y or N?"));
-    if($ans == "N") {
-        die("\033[91mThe virtual host setup was aborted\033[0m\n");
-    }
-}
 
 // Create a new Vhost object.
 $vhost = new Vhost();
@@ -60,10 +51,36 @@ if(!$vhost->editHostsFile($args->getHostsFile(), $args->getDomainName(), $args->
     die($vhost->getError());
 }
 
+// Download and install Bootstrap if the URL has been set.
+if($args->getBootstrapUrl() !== NULL) {
+    $vhost->getBootstrap($args->getBootstrapUrl(), $args->getFullPathProjectDir());
+    
+    // Copy the bootstrap template file to the new host.
+    $avhsDir = dirname(__FILE__);
+    $projectPath = $args->getFullPathProjectDir() . "/index.html";
+    if(!copy("$avhsDir/templates/bootstrap.html", $projectPath)) {
+        displayMsg("Error copying Bootstrap template file to the new host", "91");
+    }
+    else {
+        $vhost->takeOwnership($projectPath, "file");
+    }
+}
+// Copy standard template file to the new host.
+else {
+    $avhsDir = dirname(__FILE__);
+    $projectPath = $args->getFullPathProjectDir() . "/index.html";
+    if(!copy("$avhsDir/templates/index.html", $projectPath)) {
+        displayMsg("Error copying template file to the new host", "91");
+    }
+    else {
+        $vhost->takeOwnership($projectPath, "file");
+    }
+}
+
 // Enable the new virtual host and restart apache.
 displayMsg("Enabling the new virtual host and reloading the server", "93");
-echo exec("a2ensite " . pathinfo($args->getProjectConFile(), PATHINFO_FILENAME));
-echo exec("service apache2 restart");
+exec("a2ensite " . pathinfo($args->getProjectConFile(), PATHINFO_FILENAME));
+exec("service apache2 restart");
 displayMsg("\nThe new host is enabled to access the site go to http://" . $args->getDomainName(), "93");
 
 exit;

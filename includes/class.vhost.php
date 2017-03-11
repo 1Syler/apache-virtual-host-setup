@@ -34,7 +34,8 @@ class Vhost
         displayMsg("Creating the virtual hosts directory", "93");
         
         // Create the virtual hosts directory.
-	    if(!$this->createDir($vhostDir, FALSE)) {
+	    if(!mkdir($vhostDir, 0755, FALSE)) {
+            $this->setError("Error creating the directory '$vhostDir'");
             return FALSE;
         }
         
@@ -58,7 +59,8 @@ class Vhost
         displayMsg("Creating the project directory", "93");
 
         // Create the projects directory.
-	    if(!$this->createDir($fullPath, TRUE)) {
+	    if(!mkdir($fullPath, 0755, TRUE)) {
+            $this->setError("Error creating the directory '$fullPath'");
             return FALSE;
         }
         
@@ -89,9 +91,10 @@ class Vhost
         displayMsg("Creating the vitrtual hosts config file", "93");
 
         // Get the default config file contents.
-        if(!$content = $this->getFileContents($defaultConFile)) {
+	    if(!$content = file($defaultConFile, FILE_IGNORE_NEW_LINES)) {
+            $this->setError("Error getting the contents of '$defaultConFile'");
             return FALSE;
-        }
+	    }
         
         // Find the line number where to modify the server name.
         if(!$lineNum = $this->findLine("\t#ServerName www.example.com", $content, $defaultConFile)) {
@@ -119,7 +122,8 @@ class Vhost
         $content[$lineNum] = "\tDocumentRoot '$projectDir'";
         
         // Create the new config file.
-        if(!$this->createFile($projectConFile, $content)) {
+        if(file_put_contents($projectConFile, implode( "\n", $content)) === FALSE) {
+            $this->setError("Error writing the contents to '$projectConFile'");
             return FALSE;
         }
         
@@ -136,13 +140,17 @@ class Vhost
 	*/
 	public function allowVhostAccess($apacheConFile, $projectDir) {
         displayMsg("Backing up the apache config file", "93");
-        echo exec("cp '$apacheConFile' '$apacheConFile.bk'");
+        if (!copy($apacheConFile, "$apacheConFile.bk")) {
+            $this->setError("Error failed to backup the hosts file '$apacheConFile'");
+            return FALSE;
+        }
         displayMsg("Allowing access for the new virtual host", "93");
         
         // Get the apache config file contents.
-        if(!$content = $this->getFileContents($apacheConFile)) {
+	    if(!$content = file($apacheConFile, FILE_IGNORE_NEW_LINES)) {
+            $this->setError("Error getting the contents of '$apacheConFile'");
             return FALSE;
-        }
+	    }
         
         // Find the line number where to insert the directory access configuration.
         if(!$lineNum = $this->findLine("</Directory>", $content, $apacheConFile)) {
@@ -154,7 +162,8 @@ class Vhost
         array_splice($content, $lineNum+1, 0, $newlines);
         
         // Create the new config file.
-        if(!$this->createFile($apacheConFile, $content)) {
+        if(file_put_contents($apacheConFile, implode( "\n", $content)) === FALSE) {
+            $this->setError("Error writing the contents to '$apacheConFile'");
             return FALSE;
         }
         
@@ -172,13 +181,17 @@ class Vhost
 	*/
 	public function editHostsFile($hostsFile, $domain, $ip) {
         displayMsg("Backing up the hosts file", "93");
-        echo exec("cp '$hostsFile' '$hostsFile.bk'");
+        if (!copy($hostsFile, "$hostsFile.bk")) {
+            $this->setError("Error failed to backup the hosts file '$hostsFile'");
+            return FALSE;
+        }
         displayMsg("Editing the hosts file to add the new virtual host", "93");
         
         // Get the hosts files contents.
-        if(!$content = $this->getFileContents($hostsFile)) {
+	    if(!$content = file($hostsFile, FILE_IGNORE_NEW_LINES)) {
+            $this->setError("Error getting the contents of '$hostsFile'");
             return FALSE;
-        }
+	    }
         
         // Find the line number where to insert the new virtual host in the hosts file.
         if(!$lineNum = $this->findLine("", $content, $hostsFile)) {
@@ -190,7 +203,8 @@ class Vhost
         array_splice($content, $lineNum, 0, $newline);
         
         // Create the new hosts file.
-        if(!$this->createFile($hostsFile, $content)) {
+        if(file_put_contents($hostsFile, implode( "\n", $content)) === FALSE) {
+            $this->setError("Error writing the contents to '$hostsFile'");
             return FALSE;
         }
         
@@ -199,32 +213,80 @@ class Vhost
 	}
 	
 	/**
-	* Creates a directory(ies).
+	* Downloads Bootstrap and unzips it to the project folder.
 	*
-	* @param string $dir is the path of the directory to create.
-	* @param bool $recurse is TRUE if there are multiple directories to create. FALSE if just one directory.
+	* @param string $url is the URL of the Bootstrap files to download.
 	* @return FALSE if there was an error, TRUE otherwise.
 	*/
-	public function createDir($dir, $recurse) {
-	    if(!mkdir($dir, 0755, $recurse)) {
-            $this->setError("Error creating the directory '$dir'");
+	public function getBootstrap($url, $projectDir) {
+        displayMsg("Downloading and installing Bootstrap", "93");
+        
+        // Download the Bootstrap zip file.
+        $path = "$projectDir/bootstrap.zip";
+        $fp = fopen($path, 'w');
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_FILE, $fp);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
+
+        $data = curl_exec($ch);
+        curl_close($ch);
+        fclose($fp);
+        
+        // Extract the zip file contents.
+        $zip = new ZipArchive;
+        $zipDir = pathinfo($url, PATHINFO_FILENAME);
+        if($zip->open($path) === TRUE) {
+            for($i = 0; $i < $zip->numFiles; $i++) {
+                $name = $zip->getNameIndex($i);
+                
+                // Skip files not in $source
+                if(strpos($name, "{$zipDir}/") !== 0) continue;
+                
+                // Determine output filename (removing the $zipDir prefix)
+                $file = $projectDir.'/'.substr($name, strlen($zipDir)+1);
+                
+                // Create the directories if necessary
+                $dir = dirname($file);
+                if(!is_dir($dir)) {
+	                if(!mkdir($dir, 0755, TRUE)) {
+                        $this->setError("Error creating the directory '$dir'");
+                        return FALSE;
+                    }
+                    
+                    // Take Ownership of the directory.
+                    if(!$this->takeOwnership($dir, "directory")) {
+                        return FALSE;
+                    }
+                }
+                
+                // Read from Zip and write to disk
+                if($dir != $projectDir) {
+                    $fpr = $zip->getStream($name);
+                    $fpw = fopen($file, 'w');
+                    
+                    while ($data = fread($fpr, 1024)) {
+                        fwrite($fpw, $data);
+                        
+                        // Take Ownership of the directory.
+                        if(!$this->takeOwnership($file, "file")) {
+                            return FALSE;
+                        }
+                    }
+                    fclose($fpr);
+                    fclose($fpw);
+                }
+            }
+            
+            $zip->close();
+            unlink($path);
+        }
+        else {
+            $this->setError("Error opening the zip file '$path'");
             return FALSE;
         }
+
         return TRUE;
-	}
-	
-	/**
-	* Get the contents of a given file.
-	*
-	* @param string $file is the path of a file.
-	* @return FALSE if there was an error, TRUE otherwise.
-	*/
-	private function getFileContents($file) {
-	    if(!$lines = file($file, FILE_IGNORE_NEW_LINES)) {
-            $this->setError("Error getting the contents of '$file'");
-            return FALSE;
-	    }
-	    return $lines;
 	}
 	
 	/**
@@ -275,21 +337,6 @@ class Vhost
             return FALSE;
         }
         return $lnum;
-    }
-	
-	/**
-	* Creates a file.
-	*
-	* @param string $file is the path of the file.
-	* @param array $lines is an array of lines to put in the file.
-	* @return FALSE if there was an error, TRUE otherwise.
-	*/
-    private function createFile($file, $lines) {
-        if(file_put_contents($file, implode( "\n", $lines)) === FALSE) {
-            $this->setError("Error writing the contents to '$file'");
-            return FALSE;
-        }
-        return TRUE;
     }
 }
 
