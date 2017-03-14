@@ -1,13 +1,7 @@
 <?php
 
-// A function for cleaning up if the script fails at any point.
-function cleanup($dir)
-{
-}
-
 // Display a message with the sepcified colour.
-function displayMsg($message, $color)
-{
+function displayMsg($message, $color) {
     echo "\033[" . $color . "m$message\033[0m\n";
 }
 
@@ -23,6 +17,7 @@ function configMsg($args) {
     displayMsg("\tHosts file: " . $args->getHostsFile(), "97");
     displayMsg("\tDomain name: " . $args->getDomainName(), "97");
     displayMsg("\tVirtual host IP: " . $args->getVhostIp(), "97");
+    displayMsg("\tBootstrap URL: " . $args->getBootstrapUrl(), "97");
 
     // Ask the user if they want to continue with the configurations.
     $ans = "";
@@ -60,6 +55,8 @@ function helpMsg() {
     displayMsg("  -V, --vhosts-directory\tfull path of the virtual hosts directory", "97");
     displayMsg("\t\t\t\tthat contains the project directories.", "97");
     displayMsg("\t\t\t\tdefault is /var/www/", "97");
+    displayMsg("  -D, --bootstrap-url\t\tURL of a Bootstrap zip file to download", "97");
+    displayMsg("\t\t\t\tand install.", "97");
 }
 
 ?>

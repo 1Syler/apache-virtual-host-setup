@@ -14,19 +14,19 @@ class Parameters
 	* @var int $argc is the the number of arguments.
 	* @var array $argv is an array of the arguments.
 	* @var string $error is an error message.
-	* @var string $vhostDir is the name of the directory used to store the virtual hosts.
+	* @var string $vhostDir is the full path of the directory used to store the virtual hosts.
 	*             This can be set by the user, the default is /var/www/.
-	* @var string $createVhostDir is set to TRUE when the virtual host directory doesn't exist but it's parent does exist.
-	*             The default is set to FALSE.
-	* @var string $projectDir is the path of the project directory to create in $vhostDir, it can create a nested structure.
+	* @var string $vhostDirExists is set to FALSE when the virtual host directory doesn't exist.
+	*             The default is set to TRUE.
+	* @var string $projectDir is the name of the project directory and any nested directories to create in $vhostDir.
 	*             This can be set by the user the default is $projectName.
-	* @var string $projectConFile is the path of the projects .conf file.
+	* @var string $projectConFile is the full path of the projects .conf file.
 	*             This can be set by the user, the default is /etc/apache2/sites-available/[$projectDir].conf.
-	* @var string $defaultConFile is the path of the apache default vhost config file used to create the project config file.
+	* @var string $defaultConFile is the full path of the apache default vhost config file used to create the project config file.
 	*             This can be set by the user, the default is /etc/apache2/sites-available/000-default.conf.
-	* @var string $apacheConFile is the path the apache default config file used to create access for the $vhostDir.
+	* @var string $apacheConFile is the full path the apache default config file used to create access for the $vhostDir.
 	*             This can be set by the user, the default is /etc/apache2/apache2.conf.
-	* @var string $hostsFile is the path of the systems hosts file.
+	* @var string $hostsFile is the full path of the systems hosts file.
 	*             This can be set by the user, the default is /etc/hosts.
 	* @var string $domainName is the domain name for the new project, it is also used to set other variable defaults.
 	*             This must be set by the user, it will set $projectDir, $projectConFile if no arguments are passed in.
@@ -40,7 +40,7 @@ class Parameters
 	private $argv = [];
 	private $error;
 	private $vhostDir = "/var/www/";
-	private $createVhostDir = FALSE;
+	private $vhostDirExists = TRUE;
 	private $projectDir;
 	private $fullPathProjectDir;
 	private $projectConFile;
@@ -67,21 +67,19 @@ class Parameters
 	    $this->argv = $argv;
 
 		// Check if the help command has been passed in and display the help message if it has.
-		foreach($argv as $arg) {
-			if (strpos($arg, "--help") !== FALSE) {
-			helpMsg();
-			exit;
-			}
-		}
-
 		// Check if the required -D DOMAIN parameter was passed in and set error if it has not.
 		$passed = FALSE;
 		foreach($argv as $arg) {
+			if (strpos($arg, "--help") !== FALSE) {
+			    helpMsg();
+			    exit;
+			}
+			
 			if (strpos($arg, "-D") !== FALSE) {
 				$passed = TRUE;
-				break;
 			}
 		}
+		
 		if(!$passed) {
 			$this->setError("You must include a domain name using the -D parameter\nTry 'avhs.php --help' for more information.");
 			die($this->getError());
@@ -112,12 +110,12 @@ class Parameters
   		$this->vhostDir = $dir;
 	}
 	
-	public function getCreateVhostDir() {
-  		return $this->createVhostDir;
+	public function getVhostDirExists() {
+  		return $this->vhostDirExists;
 	}
 	
-	private function setCreateVhostDir($bool) {
-  		$this->createVhostDir = $bool;
+	private function setVhostDirExists($bool) {
+  		$this->vhostDirExists = $bool;
 	}
 	
 	public function getProjectDir() {
@@ -205,7 +203,7 @@ class Parameters
             // Set the parameter variable.
             $param = $this->argv[$i];
             
-            // Check that an argument exist if not set the arguments to an empty string.
+            // Check that an argument element exist if not set the arguments element to an empty string.
             if(!isset($this->argv[$i+1])) {
                 $this->argv[$i+1] = "";
             }
@@ -227,10 +225,17 @@ class Parameters
                     return FALSE;
                 }
                 
+                // Check if the config file exists.
+                if(file_exists($arg)) {
+                    $this->setError("Error '$arg' already exists");
+                    return FALSE;
+                }
+                
                 // Slice the file name off the path.
                 $configDir = dirname($arg);
-                // Checks if the files config directory exists.
-                if(!$this->checkExists($configDir)) {
+                // Check if the files config directory exists.
+                if(!file_exists($configDir)) {
+                    $this->setError("Error '$configDir' does not exist");
                     return FALSE;
                 }
 
@@ -243,7 +248,8 @@ class Parameters
                 }
                 
                 // Checks if the default config file exists.
-                if(!$this->checkExists($arg)) {
+                if(!file_exists($arg)) {
+                    $this->setError("Error '$arg' does not exist");
                     return FALSE;
                 }
                 
@@ -256,7 +262,8 @@ class Parameters
                 }
                 
                 // Checks if the apache config file exists.
-                if(!$this->checkExists($arg)) {
+                if(!file_exists($arg)) {
+                    $this->setError("Error '$arg' does not exist");
                     return FALSE;
                 }
                 
@@ -269,7 +276,8 @@ class Parameters
                 }
                 
                 // Checks if the apache config file exists.
-                if(!$this->checkExists($arg)) {
+                if(!file_exists($arg)) {
+                    $this->setError("Error '$arg' does not exist");
                     return FALSE;
                 }
                 
@@ -282,9 +290,13 @@ class Parameters
                 }
                 
                 // Check if the domain is valid.
-                if(!$this->checkDomain($arg)) {
+                if(!filter_var("validate@$arg", FILTER_VALIDATE_EMAIL)) {
+                    $this->setError("Error '$arg' is not a valid domain name");
                     return FALSE;
                 }
+                
+                // TO ADD - Check if the domain already exists.
+                
                 
                 // Set the domain name.
                 $this->setDomainName($arg);
@@ -295,7 +307,8 @@ class Parameters
                 }
                 
                 // Check if the IP address is valid.
-                if(!$this->checkIp($arg)) {
+                if(!filter_var($arg, FILTER_VALIDATE_IP)) {
+                    $this->setError("Error '$arg' is not a valid IP address");
                     return FALSE;
                 }
                 
@@ -310,25 +323,27 @@ class Parameters
                 // Slice the virtual hosts directory off the path.
                 $dir = dirname($arg);
                 // Check if the folder containing the virtual hosts directory exists.
-                if(!$this->checkExists($dir)) {
+                if(!file_exists($dir)) {
+                    $this->setError("Error '$dir' does not exist");
                     return FALSE;
                 }
                 
-                // Check if the virtual hosts directory exists, if not, set $createVhostDir.
-                if(!$this->checkExists($arg)) {
-                    $this->setCreateVhostDir(TRUE);
+                // Check if the virtual hosts directory exists, if it doesn't set $vhostDirExists to FALSE.
+                if(!file_exists($arg)) {
+                    $this->setVhostDirExists(FALSE);
                 }
                 
                 // Set the virtual hosts directory.
                 $this->setVhostDir($arg);
             }
-            else if($param == "-B" || $param == "--install-bootstrap") {
+            else if($param == "-B" || $param == "--bootstrap-url") {
                 if(!$this->checkArg($param, $arg, "invalid Bootstrap URL")) {
                     return FALSE;
                 }
                 
                 // Check if the URL is valid.
-                if(!$this->checkUrl($arg)) {
+                if(!filter_var($arg, FILTER_VALIDATE_URL)) {
+                    $this->setError("Error '$arg' is not a valid URL");
                     return FALSE;
                 }
                 
@@ -347,10 +362,10 @@ class Parameters
         }
         
         // Set the full path for the project directory.
-        $this->joinPath($this->vhostDir, $this->projectDir);
+        $this->setFullPathProjectDir($this->joinPath($this->vhostDir, $this->projectDir));
         
         // Check if the project directory already exists.
-        if($this->checkExists($this->fullPathProjectDir)) {
+        if(file_exists($this->fullPathProjectDir)) {
             $this->setError("Error: '" . $this->fullPathProjectDir . "' already exists!");
             return FALSE;
         }
@@ -386,62 +401,6 @@ class Parameters
     }
     
 	/**
-	* Check if the given path exists.
-	*
-	* @param string $path is a file or directory path
-	* @return FALSE if there was an error, TRUE otherwise.
-	*/
-    private function checkExists($path) {
-        if(!file_exists($path)) {
-            $this->setError("Error '$path' does not exist");
-            return FALSE;
-        }
-        return TRUE;
-    }
-    
-	/**
-	* Check if the given domain name is valid.
-	*
-	* @param string $domain is the doamin name.
-	* @return FALSE if there was an error, TRUE otherwise.
-	*/
-    private function checkDomain($domain) {
-        if(!filter_var("validate@$domain", FILTER_VALIDATE_EMAIL)) {
-            $this->setError("Error '$domain' is not a valid domain name");
-            return FALSE;
-        }
-        return TRUE;
-    }
-    
-	/**
-	* Check if the given IP address is valid.
-	*
-	* @param string $ip is the virtual hosts IP address.
-	* @return FALSE if there was an error, TRUE otherwise.
-	*/
-    private function checkIp($ip) {
-        if(!filter_var($ip, FILTER_VALIDATE_IP)) {
-            $this->setError("Error '$ip' is not a valid IP address");
-            return FALSE;
-        }
-        return TRUE;
-    }
-    
-	/**
-	* Check if the given URL is valid.
-	*
-	* @param string $url is the URL for downloading Bootstrap.
-	* @return FALSE if there was an error, TRUE otherwise.
-	*/
-    private function checkUrl($url) {
-        if(!filter_var($url, FILTER_VALIDATE_URL)) {
-            $this->setError("Error '$url' is not a valid URL");
-            return FALSE;
-        }
-        return TRUE;
-    }
-    
-	/**
 	* Joins two directory paths together.
 	*
 	* @param string $vDir is the path of virtual hosts directory.
@@ -458,7 +417,7 @@ class Parameters
             $this->setVhostDir(substr($vDir, 0, -1));
         }
         
-        $this->setFullPathProjectDir($this->vhostDir . $this->projectDir);
+        return($this->vhostDir . $this->projectDir);
     }
 }
 
