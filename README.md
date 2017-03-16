@@ -6,7 +6,7 @@ A PHP script for creating virtual hosts on Apache server. It has been tested on 
 
 Download and unzip.
 
-<pre><code>wget -O $HOME/avhs.zip https://github.com/1Syler/apache-virtual-host-setup/archive/master.zip && unzip $HOME/avhs.zip && rm $HOME/avhs.zip</code></pre>
+<pre><code>wget -O $HOME/avhs.zip https://github.com/1Syler/apache-virtual-host-setup/archive/master.zip && unzip $HOME/avhs.zip -d $HOME/ && rm $HOME/avhs.zip</code></pre>
 
 Create a symlink to the script.
 
