@@ -144,7 +144,7 @@ class Vhost
 
         // Get the default config file contents.
 	    if(!$content = file($defaultConFile, FILE_IGNORE_NEW_LINES)) {
-            $this->setError("Error getting the contents of the deffault config file '$defaultConFile'");
+            $this->setError("Error getting the contents of the default config file '$defaultConFile'");
             return FALSE;
 	    }
         

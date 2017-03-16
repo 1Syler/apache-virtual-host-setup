@@ -10,16 +10,52 @@ if (posix_getuid() != 0) {
     die("This script must be running as root\n");
 }
 
+// Set the directory of avhs.php
+$avhsDir = dirname(__FILE__);
+
 // Create a new Parameters object.
 $args = new Parameters($argc, $argv);
 
+// Load the configuration form the saved file.
+if($args->getLoad()) {
+    if(!$args->loadConfig($avhsDir)) {
+        die($args->getError());
+    }
+}
+// Delete the host specified in the configuration file.
+else if($args->getDelete()) {
+    if(!$args->deleteHost($avhsDir)) {
+        die($args->getError());
+    }
+}
 // Set all the parameter arguments.
-if(!$args->setParams()) {
-    die($args->getError());
+else {
+    if(!$args->setParams()) {
+        die($args->getError());
+    }
 }
 
 // Display message showing the configurations to be used for the virtual host and ask for confirmation.
-configMsg($args);
+$args->configMsg($args);
+
+// Save the configuration to a file.
+if($args->getSave()) {
+    if(!$args->saveConfig($avhsDir)) {
+        die($args->getError());
+    }
+}
+
+// Set the config variables
+$projectDir = $args->getProjectDir();
+$fullPathProjectDir = $args->getFullPathProjectDir();
+$vhostDir = $args->getVhostDir();
+$projectConFile = $args->getProjectConFile();
+$defaultConFile = $args->getDefaultConFile();
+$apacheConFile = $args->getApacheConFile();
+$hostsFile = $args->getHostsFile();
+$domainName = $args->getDomainName();
+$vhostIp = $args->getVhostIp();
+$bootstrapUrl = $args->getBootstrapUrl();
 
 // Create a new Vhost object.
 $vhost = new Vhost();
@@ -27,43 +63,42 @@ $vhost = new Vhost();
 // Create the virtual hosts directory if it doesn't exist.
 if(!$args->getVhostDirExists()) {
     // If the setup falis remove anything that has been done an exit.
-    if(!$vhost->createVhostsDir($args->getVhostDir())) {
-        $vhost->cleanup($args->getFullPathProjectDir(), $args->getVhostDir(), $args->getProjectConFile(), $args->getApacheConFile(), $args->getHostsFile());
+    if(!$vhost->createVhostsDir($vhostDir)) {
+        $vhost->cleanup($fullPathProjectDir, $vhostDir, $projectConFile, $apacheConFile, $hostsFile);
         die($vhost->getError());
     }
 }
 
 // Create the project folder for the new virtual host.
-if(!$vhost->createProjectDir($args->getFullPathProjectDir(), $args->getProjectDir())) {
-    $vhost->cleanup($args->getFullPathProjectDir(), $args->getVhostDir(), $args->getProjectConFile(), $args->getApacheConFile(), $args->getHostsFile());
+if(!$vhost->createProjectDir($fullPathProjectDir, $projectDir)) {
+    $vhost->cleanup($fullPathProjectDir, $vhostDir, $projectConFile, $apacheConFile, $hostsFile);
     die($vhost->getError());
 }
 
 // Create the virtual hosts config file.
-if(!$vhost->createConFile($args->getProjectConFile(), $args->getDefaultConFile(), $args->getFullPathProjectDir(), $args->getDomainName())) {
-    $vhost->cleanup($args->getFullPathProjectDir(), $args->getVhostDir(), $args->getProjectConFile(), $args->getApacheConFile(), $args->getHostsFile());
+if(!$vhost->createConFile($projectConFile, $defaultConFile, $fullPathProjectDir, $domainName)) {
+    $vhost->cleanup($fullPathProjectDir, $vhostDir, $projectConFile, $apacheConFile, $hostsFile);
     die($vhost->getError());
 }
 
 // Allow access for the new virtual host in the apache config file.
-if(!$vhost->allowVhostAccess($args->getApacheConFile(), $args->getVhostDir())) {
-    $vhost->cleanup($args->getFullPathProjectDir(), $args->getVhostDir(), $args->getProjectConFile(), $args->getApacheConFile(), $args->getHostsFile());
+if(!$vhost->allowVhostAccess($apacheConFile, $vhostDir)) {
+    $vhost->cleanup($fullPathProjectDir, $vhostDir, $projectConFile, $apacheConFile, $hostsFile);
     die($vhost->getError());
 }
 
 // Edit the hosts file to add the new virtual host.
-if(!$vhost->editHostsFile($args->getHostsFile(), $args->getDomainName(), $args->getVhostIp())) {
-    $vhost->cleanup($args->getFullPathProjectDir(), $args->getVhostDir(), $args->getProjectConFile(), $args->getApacheConFile(), $args->getHostsFile());
+if(!$vhost->editHostsFile($hostsFile, $domainName, $vhostIp)) {
+    $vhost->cleanup($fullPathProjectDir, $vhostDir, $projectConFile, $apacheConFile, $hostsFile);
     die($vhost->getError());
 }
 
 // Download and install Bootstrap if the URL has been set.
-if($args->getBootstrapUrl() !== NULL) {
-    $vhost->getBootstrap($args->getBootstrapUrl(), $args->getFullPathProjectDir());
+if($bootstrapUrl !== NULL) {
+    $vhost->getBootstrap($bootstrapUrl, $fullPathProjectDir);
     
     // Copy the bootstrap template file to the new host.
-    $avhsDir = dirname(__FILE__);
-    $projectPath = $args->getFullPathProjectDir() . "/index.html";
+    $projectPath = $fullPathProjectDir . "/index.html";
     if(!copy("$avhsDir/templates/bootstrap.html", $projectPath)) {
         displayMsg("Error copying Bootstrap template file to the new host", "91");
     }
@@ -73,8 +108,7 @@ if($args->getBootstrapUrl() !== NULL) {
 }
 // Copy standard template file to the new host.
 else {
-    $avhsDir = dirname(__FILE__);
-    $projectPath = $args->getFullPathProjectDir() . "/index.html";
+    $projectPath = $fullPathProjectDir . "/index.html";
     if(!copy("$avhsDir/templates/index.html", $projectPath)) {
         displayMsg("Error copying template file to the new host", "91");
     }
@@ -85,8 +119,8 @@ else {
 
 // Enable the new virtual host and restart apache.
 displayMsg("Enabling the new virtual host and reloading the server", "93");
-exec("a2ensite " . pathinfo($args->getProjectConFile(), PATHINFO_FILENAME));
+exec("a2ensite " . pathinfo($projectConFile, PATHINFO_FILENAME));
 exec("service apache2 restart");
-displayMsg("\nThe new host is enabled to access the site go to http://" . $args->getDomainName(), "93");
+displayMsg("\nThe new host is enabled to access the site go to http://" . $domainName, "93");
 exit;
 ?>
