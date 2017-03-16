@@ -485,7 +485,7 @@ class Parameters
         }
         
         if($arg[0] == "-") {
-            $this->setError("avhs.php: $error: '$arg'\n");
+            $this->setError("avhs.php: $error: '$arg'");
             return FALSE;
         }
         return TRUE;
@@ -514,6 +514,25 @@ class Parameters
     // Save the new hosts configurations.
     public function saveConfig($avhsDir) {
         $configFile = "$avhsDir/saved/" . $this->domainName . ".conf";
+        
+        // Check if the saved directory exists and create it if not.
+        if(!file_exists("$avhsDir/saved/")) {
+            if(!mkdir("$avhsDir/saved/")) {
+                $this->setError("Error creating the saved config directory");
+                return FALSE;
+            }
+        
+            // Change the config directory owner to the current user.
+            if(!chown("$avhsDir/saved/", $_SERVER['SUDO_USER'])) {
+                $this->setError("Error setting the file owner for '$configFile'");
+                return FALSE;
+            }
+            // Change the config directory group to the current user.
+            if(!chgrp("$avhsDir/saved/", $_SERVER['SUDO_USER'])) {
+                $this->setError("Error setting the file group for '$configFile'");
+                return FALSE;
+            }
+        }
         
         // Set the configuration information.
         $content = "-P=" . $this->projectDir .
