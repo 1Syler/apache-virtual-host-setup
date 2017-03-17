@@ -38,7 +38,9 @@ class Parameters
 	*             The default is set to FALSE.
 	* @var bool   $load is set to TRUE when the user opts to load the config.
 	*             The default is set to FALSE.
-	* @var bool   $delete is set to TRUE when the user opts to delete the host.
+	* @var bool   $load is set to TRUE when the user opts to load the config.
+	*             The default is set to FALSE.
+	* @var bool   $delete is set to TRUE when the user opts to show the saved configuration files.
 	*             The default is set to FALSE.
     * @var string $saveFile is the name of the saved config minus the .conf extension.
 	*
@@ -59,15 +61,17 @@ class Parameters
 	private $bootstrapUrl;
 	private $save = FALSE;
 	private $load = FALSE;
+	private $show = FALSE;
 	private $delete = FALSE;
 	private $saveFile;
 
 	/*
 	*
 	* Sets $argc and $argv.
-	* Check if the help parameter was passed.
-	* Check if the load parameter was passed.
-	* Check if the delete parameter was passed.
+	* Check if the --help parameter was passed.
+	* Check if the --load-config parameter was passed.
+	* Check if the --show-save-files parameter was passed.
+	* Check if the --delete-host parameter was passed.
 	* Check if the required -D parameter was passed in.
 	*
 	* @param int $argc is the the number of arguments passed in.
@@ -80,10 +84,7 @@ class Parameters
 	    $this->argc = $argc;
 	    $this->argv = $argv;
 
-		// Check if the help parameter has been passed in and display the help message if it has.
-		// Check if the load parameter has been passed in and set $load and $saveFile.
-		// Check if the delete parameter has been passed in and set $delete and $saveFile.
-		// Check if the required domain parameter was passed in and set error if it has not.
+		// Check if specified parameters were passed in.
 		$domainSet = FALSE;
 		while($param = current($argv)) {
 		    $arg = next($argv);
@@ -100,6 +101,11 @@ class Parameters
 				$this->setSaveFile($arg);
 			}
 			
+		    // Check for the show parameter
+			if(strpos($param, "--show-save-files") !== FALSE) {
+				$this->setShow(TRUE);
+			}
+			
 		    // Check for the delete parameter
 			if(strpos($param, "--delete-host") !== FALSE) {
 				$this->setDelete(TRUE);
@@ -113,7 +119,7 @@ class Parameters
 		}
 		
 		// Check if the user has not set a domain name set and load or delete is not set to TRUE.
-		if(!$domainSet && !$this->load && !$this->delete) {
+		if(!$domainSet && !$this->load && !$this->show && !$this->delete) {
 			die("\nYou must include a domain name using the -D parameter\nTry 'avhs.php --help' for more information.\n");
 		}
 	}
@@ -248,6 +254,14 @@ class Parameters
 	
 	private function setLoad($bool) {
   		$this->load = $bool;
+	}
+	
+	public function getShow() {
+  		return $this->show;
+	}
+	
+	private function setShow($bool) {
+  		$this->show = $bool;
 	}
 	
 	public function getDelete() {
@@ -513,22 +527,23 @@ class Parameters
     
     // Save the new hosts configurations.
     public function saveConfig($avhsDir) {
-        $configFile = "$avhsDir/saved/" . $this->domainName . ".conf";
+        $saveDir = "$avhsDir/saved/";
+        $configFile = $saveDir . $this->domainName . ".conf";
         
         // Check if the saved directory exists and create it if not.
-        if(!file_exists("$avhsDir/saved/")) {
-            if(!mkdir("$avhsDir/saved/")) {
+        if(!file_exists("$saveDir")) {
+            if(!mkdir("$saveDir")) {
                 $this->setError("Error creating the saved config directory");
                 return FALSE;
             }
         
             // Change the config directory owner to the current user.
-            if(!chown("$avhsDir/saved/", $_SERVER['SUDO_USER'])) {
+            if(!chown("$saveDir", $_SERVER['SUDO_USER'])) {
                 $this->setError("Error setting the file owner for '$configFile'");
                 return FALSE;
             }
             // Change the config directory group to the current user.
-            if(!chgrp("$avhsDir/saved/", $_SERVER['SUDO_USER'])) {
+            if(!chgrp("$saveDir", $_SERVER['SUDO_USER'])) {
                 $this->setError("Error setting the file group for '$configFile'");
                 return FALSE;
             }
@@ -613,6 +628,17 @@ class Parameters
 	    return TRUE;
     }
     
+    // Show all the saved config file.
+    public function showSavedConFiles($avhsDir) {
+        $saveDir = "$avhsDir/saved/";
+        $fileList = array_diff(scandir($saveDir), ["..", "."]);
+        
+        // List the file names without .conf
+        foreach($fileList as $file) {
+            echo substr($file, 0, strpos($file, ".conf"))."\n";
+        }
+    }
+    
     // Delete the host
     public function deleteHost() {
         
@@ -646,6 +672,7 @@ class Parameters
     private function helpMsg() {
         displayMsg("Usage: avhs -D DOMAIN [OPTIONS] ARGUMENT --save-config", "97");
         displayMsg("            [--load-config | --delete-config] FILE", "97");
+        displayMsg("            [--show-save-files]", "97");
         displayMsg("Creates a new virtual host for Apache.\n", "97");
         displayMsg("The -D option and a valid DOMAIN name is required.", "97");
         displayMsg("If no other options are passed in the virtual host", "97");
@@ -676,6 +703,7 @@ class Parameters
         displayMsg("\t\t\t\tDOMAIN.conf", "97");
         displayMsg("      --load-config\t\treload a site using the configurations stored in", "97");
         displayMsg("\t\t\t\tthe saved file", "97");
+        displayMsg("      --show-save-files\t\tshow a lists of all the saved config files", "97");
     }
 }
 

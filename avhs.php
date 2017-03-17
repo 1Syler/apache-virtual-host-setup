@@ -22,6 +22,12 @@ if($args->getLoad()) {
         die($args->getError());
     }
 }
+// Show a list of all the saved configuration files.
+else if($args->getShow()) {
+    if(!$args->showSavedConFiles($avhsDir)) {
+        die($args->getError());
+    }
+}
 // Delete the host specified in the configuration file.
 else if($args->getDelete()) {
     if(!$args->deleteHost($avhsDir)) {
