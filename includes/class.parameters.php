@@ -92,7 +92,6 @@ class Parameters
 		    // Check for the help parameter
 			if(strpos($param, "--help") !== FALSE) {
 			    $this->helpMsg();
-			    exit;
 			}
 			
 		    // Check for the load parameter
@@ -631,12 +630,21 @@ class Parameters
     // Show all the saved config file.
     public function showSavedConFiles($avhsDir) {
         $saveDir = "$avhsDir/saved/";
+        
+        // Check if saved directory exists.
+        if(!file_exists($saveDir)) {
+            echo "No saved config files\n";
+            exit;
+        }
+        
         $fileList = array_diff(scandir($saveDir), ["..", "."]);
         
         // List the file names without .conf
         foreach($fileList as $file) {
             echo substr($file, 0, strpos($file, ".conf"))."\n";
         }
+        
+        exit;
     }
     
     // Delete the host
@@ -704,6 +712,7 @@ class Parameters
         displayMsg("      --load-config\t\treload a site using the configurations stored in", "97");
         displayMsg("\t\t\t\tthe saved file", "97");
         displayMsg("      --show-save-files\t\tshow a lists of all the saved config files", "97");
+        exit;
     }
 }
 
