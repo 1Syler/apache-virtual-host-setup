@@ -6,63 +6,34 @@
  *
  */
 
-class Vhost
+class Vhost extends VhostConfig
 {
 	/*
 	* Private variables
 	*
-	* @var string $error is an error message.
+	* @var bool $vhostDirCreated.
 	*
 	*/
-	private $error;
 	private $vhostDirCreated = FALSE;
 	private $projectDirCreated = FALSE;
 	private $projectConFileCreated = FALSE;
 	private $apacheConFileEdited = FALSE;
 	private $hostsFileEdited = FALSE;
 	
-	public function getError() {
-  		return $this->error;
-	}
-	
-	private function setError($error) {
-  		$this->error = "\033[91m$error\033[0m\n";
-	}
-	
-	public function getVhostDirCreated() {
-  		return $this->vhostDirCreated;
-	}
-	
 	private function setVhostDirCreated($bool) {
   		$this->vhostDirCreated = $bool;
-	}
-	
-	public function getProjectDirCreated() {
-  		return $this->projectDirCreated;
 	}
 	
 	private function setProjectDirCreated($bool) {
   		$this->projectDirCreated = $bool;
 	}
 	
-	public function getProjectConFileCreated() {
-  		return $this->projectConFileCreated;
-	}
-	
 	private function setProjectConFileCreated($bool) {
   		$this->projectConFileCreated = $bool;
 	}
 	
-	public function getApacheConFileEdited() {
-  		return $this->apacheConFileEdited;
-	}
-	
 	private function setApacheConFileEdited($bool) {
   		$this->apacheConFileEdited = $bool;
-	}
-	
-	public function getHostsFileEdited() {
-  		return $this->hostsFileEdited;
 	}
 	
 	private function setHostsFileEdited($bool) {
@@ -76,12 +47,12 @@ class Vhost
 	* @param string $vhostDir is the name of the virtual hosts directory.
 	* @return FALSE if there was an error, TRUE otherwise.
 	*/
-	public function createVhostsDir($vhostDir) {
+	public function createVhostsDir() {
         displayMsg("Creating the virtual hosts directory", "93");
         
         // Create the virtual hosts directory.
-	    if(!mkdir($vhostDir, 0755, FALSE)) {
-            $this->setError("Error creating the virtual hosts directory '$vhostDir'");
+	    if(!mkdir($this->vhostDir, 0755, FALSE)) {
+            $this->setError("Error creating the virtual hosts directory '".$this->vhostDir."'");
             return FALSE;
         }
         
@@ -89,7 +60,7 @@ class Vhost
         $this->setVhostDirCreated(TRUE);
         
         // Take Ownership of the virtual host directory.
-        if(!$this->takeOwnership($vhostDir, "directory")) {
+        if(!$this->takeOwnership($this->vhostDir, "directory")) {
             return FALSE;
         }
         
@@ -104,22 +75,24 @@ class Vhost
 	* @param string $projectDir is the path of the project directory and any nested directories.
 	* @return FALSE if there was an error, TRUE otherwise.
 	*/
-	public function createProjectDir($fullPath, $projectDir) {
+	public function createProjectDir() {
         displayMsg("Creating the project directory", "93");
 
         // Create the projects directory.
-	    if(!mkdir($fullPath, 0755, TRUE)) {
-            $this->setError("Error creating the project directory '$fullPath'");
+	    if(!mkdir($this->fullPathProjectDir, 0755, TRUE)) {
+            $this->setError("Error creating the project directory '$this->fullPathProjectDir'");
             return FALSE;
         }
         
         // Set project directory created to TRUE.
         $this->setProjectDirCreated(TRUE);
         
+        // Get the number of directories.
+        $num = count(array_filter(explode("/", $this->projectDir)));
+        
         // Take ownership of each directory.
-        $dirs = array_filter(explode("/", $projectDir));
-        $numDirs = count($dirs);
-        for($i = 0; $i < $numDirs; $i++) {
+        $fullPath = $this->fullPathProjectDir;
+        for($i = 0; $i < $num; $i++) {
             if(!$this->takeOwnership($fullPath, "directory")) {
                 return FALSE;
             }
@@ -133,49 +106,50 @@ class Vhost
 	/**
 	* Creates the projects config file.
 	*
-	* @param string $projectConFile is the path of the projects config file.
-	* @param string $defaultConFile is the path of the default config file.
-	* @param string $projectDir is the path of the projects directory and any nested directories.
-	* @param string $domainName is the domain name.
 	* @return FALSE if there was an error, TRUE otherwise.
 	*/
-	public function createConFile($projectConFile, $defaultConFile, $projectDir, $domainName) {
+	public function createConFile() {
         displayMsg("Creating the vitrtual hosts config file", "93");
 
         // Get the default config file contents.
-	    if(!$content = file($defaultConFile, FILE_IGNORE_NEW_LINES)) {
-            $this->setError("Error getting the contents of the default config file '$defaultConFile'");
+	    if(!$lines = file($this->defaultConFile, FILE_IGNORE_NEW_LINES)) {
+            $this->setError("Error getting the contents of the default config file '".$this->defaultConFile."'");
             return FALSE;
 	    }
+	    
+        // Find and edit the lines in the default config file.
+	    $serverName = $serverAdmin = $documentRoot = FALSE;
+        for($i = 0; $i < count($lines); $i++) {
+            // Edit the Sever Name.
+			if(strpos($lines[$i], "#ServerName") !== FALSE) {
+                $lines[$i] = "\tServerName ".$this->domainName;
+                
+                // Add server alisas to the config file.
+                $newline = "\tServerAlias www.".$this->domainName;
+                array_splice($lines, $i+1, 0, $newline);
+                $serverName = TRUE;
+			}
+            // Edit the Sever Admin.
+			if(strpos($lines[$i], "ServerAdmin") !== FALSE) {
+                $lines[$i] = "\tServerAdmin admin@".$this->domainName;
+                $serverAdmin = TRUE;
+            }
+            // Edit the Document Root.
+			if(strpos($lines[$i], "DocumentRoot") !== FALSE) {
+                $lines[$i] = "\tDocumentRoot '".$this->fullPathProjectDir."'";
+                $documentRoot = TRUE;
+            }
+        }
         
-        // Find the line number where to modify the server name.
-        if(!$lineNum = $this->findLine("\t#ServerName www.example.com", $content, $defaultConFile)) {
+        // Check if all the lines were edited.
+        if($serverName != TRUE || $serverAdmin != TRUE || $documentRoot != TRUE) {
+            $this->setError("Error editing the default config file '".$this->defaultConFile."'");
             return FALSE;
         }
-        // Modify the server name line.
-        $content[$lineNum] = "\tServerName $domainName";
-        
-        // Add server alisas to the config file.
-        $newline = "\tServerAlias www.$domainName";
-        array_splice($content, $lineNum+1, 0, $newline);
-        
-        // Find the line number where to modify the server admin.
-        if(!$lineNum = $this->findLine("\tServerAdmin webmaster@localhost", $content, $defaultConFile)) {
-            return FALSE;
-        }
-        // Modify the document root line.
-        $content[$lineNum] = "\tServerAdmin admin@$domainName";
-        
-        // Find the line number where to modify the document root.
-        if(!$lineNum = $this->findLine("\tDocumentRoot /var/www/html", $content, $defaultConFile)) {
-            return FALSE;
-        }
-        // Modify the document root line.
-        $content[$lineNum] = "\tDocumentRoot '$projectDir'";
         
         // Create the new config file.
-        if(file_put_contents($projectConFile, implode( "\n", $content)) === FALSE) {
-            $this->setError("Error writing the contents to '$projectConFile'");
+        if(file_put_contents($this->projectConFile, implode( "\n", $lines)) === FALSE) {
+            $this->setError("Error writing the contents to '".$this->projectConFile."'");
             return FALSE;
         }
         
@@ -189,47 +163,61 @@ class Vhost
 	/**
 	* Edits the apache config file to allow access for the new virtual host.
 	*
-	* @param string $apacheConFile the path of the apache config file.
-	* @param string $projectDir is the path of the projects directory and any nested directories.
+	* @var string $this->apacheConFile the path of the apache config file.
+	* @var string $this->projectDir is the path of the projects directory and any nested directories.
 	* @return FALSE if there was an error, TRUE otherwise.
 	*/
-	public function allowVhostAccess($apacheConFile, $vhostsDir) {
+	public function allowVhostAccess() {
         displayMsg("Backing up the apache config file", "93");
-        if (!copy($apacheConFile, "$apacheConFile.bk")) {
-            $this->setError("Error failed to backup the hosts file '$apacheConFile'");
+        if (!copy($this->apacheConFile, $this->apacheConFile.".bk")) {
+            $this->setError("Error failed to backup the hosts file '".$this->apacheConFile."'");
             return FALSE;
         }
         displayMsg("Apache config file successfully backed up", "32");
         displayMsg("Allowing access for the new virtual host", "93");
         
         // Get the apache config file contents.
-	    if(!$content = file($apacheConFile, FILE_IGNORE_NEW_LINES)) {
-            $this->setError("Error getting the contents of the apache config file '$apacheConFile'");
+	    if(!$lines = file($this->apacheConFile, FILE_IGNORE_NEW_LINES)) {
+            $this->setError("Error getting the contents of the apache config file '".$this->apacheConFile."'");
             return FALSE;
 	    }
-        
+	    
         // Check if the virtual host directory already has access in the apache config file.
         $allowed = FALSE;
-        if($lineNum = $this->findLine("<Directory $vhostsDir>", $content, $apacheConFile)
-        || $lineNum = $this->findLine("<Directory '$vhostsDir'>", $content, $apacheConFile)) {
-            $this->setError("");
-            $allowed = TRUE;
-        }
+        for($i = 0; $i < count($lines); $i++) {
+		    if(strpos($lines[$i], "<Directory ".$this->vhostDir.">") !== FALSE) {
+                $allowed = TRUE;
+                break;
+		    }
+		    if(strpos($lines[$i], "<Directory '".$this->vhostDir."'>") !== FALSE) {
+                $allowed = TRUE;
+                break;
+		    }
+	    }
         
         // Allow access for the virtual hosts directory.
         if(!$allowed) {
-            // Find the line number where to insert the directory access configuration.
-            if(!$lineNum = $this->findLine("</Directory>", $content, $apacheConFile)) {
+            $found = FALSE;
+            for($i = 0; $i < count($lines); $i++) {
+		        if(strpos($lines[$i], "</Directory>") !== FALSE) {
+                    // Splice the new lines into the content array.
+                    $newlines = ["\n<Directory '".$this->vhostDir."'>", "\tOptions Indexes FollowSymLinks", "\tAllowOverride None", "\tRequire all granted", "</Directory>"];
+                    array_splice($lines, $i+1, 0, $newlines);
+                    
+                    $found = TRUE;
+                    break;
+                }
+		    }
+        
+            // Check if the line was found and edited.
+            if($found != TRUE) {
+                $this->setError("Error editing the apache config file '".$this->apacheConFile."'");
                 return FALSE;
             }
             
-            // Splice the new lines into the content array.
-            $newlines = ["\n<Directory '$vhostsDir'>", "\tOptions Indexes FollowSymLinks", "\tAllowOverride None", "\tRequire all granted", "</Directory>"];
-            array_splice($content, $lineNum+1, 0, $newlines);
-            
             // Create the edited config file.
-            if(file_put_contents($apacheConFile, implode( "\n", $content)) === FALSE) {
-                $this->setError("Error writing the contents to '$apacheConFile'");
+            if(file_put_contents($this->apacheConFile, implode( "\n", $lines)) === FALSE) {
+                $this->setError("Error writing the contents to '".$this->apacheConFile."'");
                 return FALSE;
             }
         
@@ -242,40 +230,44 @@ class Vhost
 	}
 	
 	/**
-	* Edits the hosts file to add the nnew virtual host.
+	* Edits the hosts file to add the new virtual host.
 	*
 	* @param string $hostsfile is the path of the hosts file.
 	* @param string $domain is the domain name.
 	* @param string $ip is the virtual hosts IP address.
 	* @return FALSE if there was an error, TRUE otherwise.
 	*/
-	public function editHostsFile($hostsFile, $domain, $ip) {
+	public function editHostsFile() {
         displayMsg("Backing up the hosts file", "93");
-        if (!copy($hostsFile, "$hostsFile.bk")) {
-            $this->setError("Error failed to backup the hosts file '$hostsFile'");
+        if (!copy($this->hostsFile, $this->hostsFile.".bk")) {
+            $this->setError("Error failed to backup the hosts file '".$this->hostsFile."'");
             return FALSE;
         }
         displayMsg("Hosts file successfully backed up", "32");
         displayMsg("Editing the hosts file to add the new virtual host", "93");
         
         // Get the hosts files contents.
-	    if(!$content = file($hostsFile, FILE_IGNORE_NEW_LINES)) {
-            $this->setError("Error getting the contents of the hosts file '$hostsFile'");
+	    if(!$lines = file($this->hostsFile, FILE_IGNORE_NEW_LINES)) {
+            $this->setError("Error getting the contents of the hosts file '".$this->hostsFile."'");
             return FALSE;
 	    }
         
         // Find the line number where to insert the new virtual host in the hosts file.
-        if(!$lineNum = $this->findLine("", $content, $hostsFile)) {
-            return FALSE;
-        }
-        
-        // Splice the new line into the content array.
-        $newline = "$ip\t$domain";
-        array_splice($content, $lineNum, 0, $newline);
+        $found = FALSE;
+        for($i = 0; $i < count($lines); $i++) {
+		    if($lines[$i] == "") {
+                // Splice the new line into the content array.
+                $newline = $this->vhostIp."\t".$this->domainName;
+                array_splice($lines, $i, 0, $newline);
+                
+                $found = TRUE;
+                break;
+		    }
+	    }
         
         // Create the edited hosts file.
-        if(file_put_contents($hostsFile, implode( "\n", $content)) === FALSE) {
-            $this->setError("Error writing the contents to '$hostsFile'");
+        if(file_put_contents($this->hostsFile, implode( "\n", $lines)) === FALSE) {
+            $this->setError("Error writing the contents to '".$this->hostsFile."'");
             return FALSE;
         }
         
@@ -283,6 +275,7 @@ class Vhost
         $this->setHostsFileEdited(TRUE);
         
         displayMsg("The hosts file was successfully edited", "32");
+        //return FALSE;
         return TRUE;
 	}
 	
@@ -292,14 +285,14 @@ class Vhost
 	* @param string $url is the URL of the Bootstrap files to download.
 	* @return FALSE if there was an error, TRUE otherwise.
 	*/
-	public function getBootstrap($url, $projectDir) {
+	public function getBootstrap() {
         displayMsg("Downloading and installing Bootstrap", "93");
         
         // Download the Bootstrap zip file.
-        $path = "$projectDir/bootstrap.zip";
+        $path = $this->fullPathProjectDir."/bootstrap.zip";
         $fp = fopen($path, 'w');
 
-        $ch = curl_init($url);
+        $ch = curl_init($this->bootstrapUrl);
         curl_setopt($ch, CURLOPT_FILE, $fp);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
 
@@ -318,7 +311,7 @@ class Vhost
                 if(strpos($name, "{$zipDir[0]}/") !== 0) continue;
                 
                 // Determine output filename (removing the $zipDir prefix)
-                $file = $projectDir.'/'.substr($name, strlen($zipDir[0])+1);
+                $file = $this->fullPathProjectDir.'/'.substr($name, strlen($zipDir[0])+1);
                 
                 // Create the directories if necessary
                 $dir = dirname($file);
@@ -335,7 +328,7 @@ class Vhost
                 }
                 
                 // Read from Zip and write to disk
-                if($dir != $projectDir) {
+                if($dir != $this->fullPathProjectDir) {
                     $fpr = $zip->getStream($name);
                     $fpw = fopen($file, 'w');
                     
@@ -363,93 +356,232 @@ class Vhost
         displayMsg("Bootstrap was successfully installed", "32");
         return TRUE;
 	}
-	
-	/**
-	* Takes ownership of a file or directory.
-	*
-	* @param string $path is the file or directory to take ownership of.
-	* @param string $type either 'directory' or 'file'.
-	* @return FALSE if there was an error, TRUE otherwise.
-	*/
-	public function takeOwnership($path, $type) {
-        // Change the directory owner to the current user.
-        if(!chown($path, $_SERVER['SUDO_USER'])) {
-            $this->setError("Error setting the $type owner for '$path'");
-            return FALSE;
-        }
-        // Change the directory group to the current user.
-        if(!chgrp($path, $_SERVER['SUDO_USER'])) {
-            $this->setError("Error setting the $type group for '$path'");
-            return FALSE;
+    
+    // Empties a directory recursivly.
+    private function emptyDir($fullPath) {
+        $fileList = array_diff(scandir($fullPath), ["..", "."]);
+        
+        foreach($fileList as $file) {
+            $path = "$fullPath$file";
+            
+            if(is_dir($path)) {
+                $this->emptyDir("$path/");
+                if(!rmdir($path)) {
+                    $this->setError("Error removing the directory '$path'", "91");
+                    return FALSE;
+                }
+            }
+            else {
+                if(!unlink($path)) {
+                    $this->setError("Error removing the file '$path'", "91");
+                    return FALSE;
+                }
+            }
         }
         return TRUE;
-	}
-	
-	/**
-	* Finds a given line in a file.
-	*
-	* @param string $find the line to find.
-	* @param array $lines an array of lines in the file.
-	* @param string $file the path of the file.
-	* @return FALSE if there was an error, TRUE otherwise.
-	*/
-	private function findLine($find, $lines, $file) {
-        $lnum = 0;
-        $found = FALSE;
+    }
+    
+    // Delete the virtual host
+    public function deleteHost() {
+        displayMsg("Deleting the virtual host", "93");
+        $savedConFile = $this->scriptDir."/saved/" . $this->saveFile . ".conf";
         
-        // Check each line to see if there is a match.
-        foreach($lines as $line)
-        {
-            if($line == $find)
-            {
-                $found = TRUE;
-                break;
-            }
-            $lnum++;
+        // Check if the saved config file exists.
+	    if(!file_exists($savedConFile)) {
+            $this->setError("Error the saved config file does not exist '$savedConFile'");
+            return FALSE;
+	    }
+        
+        // Get the saved config files contents.
+	    if(!$lines = file($savedConFile, FILE_IGNORE_NEW_LINES)) {
+            $this->setError("Error getting the contents of the hosts file '$savedConFile'");
+            return FALSE;
+	    }
+        
+	    // Set the configuration variables needed for deletion.
+	    foreach($lines as $line) {
+	        // Set the parameter and value on each line of the saved file.
+	        $param = substr($line, 0, strpos($line, "="));
+	        $arg = substr($line, strpos($line, "=")+1);
+	        
+		    // Get the project directory.
+		    if($param == "-P") {
+		        $projectDir = "$arg/";
+	        }
+		    // Get the virtual hosts directory.
+		    else if($param == "-V") {
+		        $vhostDir = $arg;
+	        }
+		    // Get the apache config file.
+		    else if($param == "-a") {
+		        $apacheConFile = $arg;
+	        }
+		    // Get the projects config file.
+		    else if($param == "-p") {
+		        $projectConFile = $arg;
+	        }
+		    // Get the domain name.
+		    else if($param == "-D") {
+		        $domainName = $arg;
+	        }
+		    // Get the hosts file.
+		    else if($param == "-h") {
+		        $hostsFile = $arg;
+	        }
         }
         
-        if($found == FALSE) {
-            $this->setError("Error finding the line '$find' to edit in '$file'");
+        // Disable the host
+        exec("a2dissite " . pathinfo($projectConFile, PATHINFO_FILENAME));
+        
+        // Get the full path of the project directory.
+        $fullPath = $this->joinPath($vhostDir, substr($projectDir, 0, strpos($projectDir, "/")));
+        
+        // Check if the project directory exists.
+        if(!file_exists($fullPath)) {
+            displayMsg("Error the project directory does not exist '$fullPath'", "91");
+        }
+        
+        // Delete the project directory and any contents.
+        if(!$this->emptyDir("$fullPath/")) {
             return FALSE;
         }
-        return $lnum;
+        if(!rmdir($fullPath)) {
+            displayMsg("Error removing the project directory '$fullPath'", "91");
+        }
+        
+        // Check if the virtual hosts directory path contains the users home directory and is empty.
+        // Remove the directory if it is empty and remove access in the apache config file.
+        if(strpos($vhostDir, $_SERVER['HOME']) !== FALSE) {
+            if(count(array_diff(scandir($vhostDir), ["..", "."])) == 0) {
+                if(!rmdir($vhostDir)) {
+                    $this->setError("Error deleting the virtual hosts directory '$vhostDir'");
+                    return FALSE;
+                }
+                
+                // Check if the apache config file exists and get it's contents as an array of lines.
+                if(!$lines = $this->getFileContents($apacheConFile)) {
+                    return FALSE;
+                }
+                
+                // Find the line with a matching domain and remove the line from the array.
+                $vhostLine = "<Directory '$vhostDir'>";
+                for($i = 0; $i < count($lines); $i++) {
+			        if(strpos($lines[$i], $vhostLine) !== FALSE) {
+			            unset($lines[$i]);
+			            unset($lines[$i+1]); // "\tOptions Indexes FollowSymLinks"
+			            unset($lines[$i+2]); // "\tAllowOverride None"
+			            unset($lines[$i+3]); // "\tRequire all granted"
+			            unset($lines[$i+4]); // "</Directory>"
+			            unset($lines[$i+5]); // "\n"
+			            break;
+                    
+			        }
+                }
+                
+                // Create the edited apache config file.
+                if(file_put_contents($apacheConFile, implode( "\n", $lines)) === FALSE) {
+                    $this->setError("Error creating the apache config file '$apacheConFile'");
+                    return FALSE;
+                }
+            }
+        }
+        
+        // Delete the projects configuration file.
+        if(!unlink($projectConFile)) {
+            $this->setError("Error removing the projects config file '$projectConFile'", "91");
+            return FALSE;
+        }
+                
+        // Check if the hosts file exists and get it's contents as an array of lines.
+        if(!$lines = $this->getFileContents($hostsFile)) {
+            return FALSE;
+        }
+        
+        // Find the line with a matching domain and remove the line from the array.
+        for($i = 0; $i < count($lines); $i++) {
+			if(strpos($lines[$i], $domainName) !== FALSE) {
+			    unset($lines[$i]);
+			    break;
+			}
+        }
+        
+        // Create the edited file.
+        if(file_put_contents($hostsFile, implode( "\n", $lines)) === FALSE) {
+            $this->setError("Error creating the hosts file '$hostsFile'");
+            return FALSE;
+        }
+        
+        // Restart the server
+        exec("service apache2 restart");
+        
+        displayMsg("The virtual host was successfully deleted", "32");
+        return TRUE;
+    }
+    
+    private function getFileContents($file) {
+        // Check if the file exists.
+        if(!file_exists($file)) {
+            $this->setError("Error '$file' does not exist");
+            return FALSE;
+        }
+        
+        // Backup the file.
+        if(!copy($file, "$file.bk")) {
+            $this->setError("Error failed to backup the file '$file'");
+            return FALSE;
+        }
+        
+        // Get the files contents.
+	    if(!$lines = file($file, FILE_IGNORE_NEW_LINES)) {
+            $this->setError("Error getting the contents of the file '$file'");
+            return FALSE;
+	    }
+	    
+	    return $lines;
     }
     
     // A function for cleaning up if the script fails at any point.
-    function cleanup($projectDir, $vhostDir, $projectConFile, $apacheConFile, $hostsFile) {
+    public function cleanup() {
         displayMsg("Script failed. Cleaning up everything that was done", "97");
         
         // Remove the project directory if it was created.
-        if($this->getProjectDirCreated()) {
-            if(!rmdir($projectDir)) {
-                displayMsg("Error removing the project directory", "91");
+        if($this->projectDirCreated) {
+            $projectDir = $this->projectDir."/";
+            $fullPath = $this->vhostDir.substr($projectDir, 0, strpos($projectDir, "/"));
+            
+            if(!$this->emptyDir("$fullPath/")) {
+                return FALSE;
+            }
+            if(!rmdir($fullPath)) {
+                $this->setError("Error removing the directory '$fullPath'", "91");
+                return FALSE;
             }
         }
         
         // Remove the vitrtual host directory if it was created.
-        if($this->getVhostDirCreated()) {
-            if(!rmdir($vhostDir)) {
+        if($this->vhostDirCreated) {
+            if(!rmdir($this->vhostDir)) {
                 displayMsg("Error removing the virtual hosts directory", "91");
             }
         }
         
         // Remove the project config file if it was created.
-        if($this->getProjectConFileCreated()) {
-            if(!unlink($projectConFile)) {
+        if($this->projectConFileCreated) {
+            if(!unlink($this->projectConFile)) {
                 displayMsg("Error removing the project config file", "91");
             }
         }
         
         // Restore the apache config file.
-        if($this->getApacheConFileEdited()) {
-            if(!copy("$apacheConFile.bk", $apacheConFile)) {
+        if($this->apacheConFileEdited) {
+            if(!copy($this->apacheConFile.".bk", $this->apacheConFile)) {
                 displayMsg("Error restoring apache config file backup", "91");
             }
         }
         
         // Restore the hosts file.
-        if($this->getHostsFileEdited()) {
-            if(!copy("$hostsFile.bk", $hostsFile)) {
+        if($this->hostsFileEdited) {
+            if(!copy($this->hostsFile.".bk", $this->hostsFile)) {
                 displayMsg("Error restoring hosts file backup", "91");
             }
         }

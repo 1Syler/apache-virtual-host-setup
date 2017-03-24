@@ -6,13 +6,20 @@
  *
  */
      
-class Parameters
+class VhostConfig
 {
 	/*
 	* Private variables
 	*
 	* @var int    $argc is the the number of arguments.
     * @var array  $argv is an array of the arguments.
+    *
+	* Protected variables
+	*
+    * @var string $scriptDir is full path to the calling script avhs.php.
+    *
+	* Public variables
+	*
 	* @var string $error is an error message.
 	* @var string $vhostDir is the full path of the directory used to store the virtual hosts.
 	*             This can be set by the user, the default is /var/www/.
@@ -47,92 +54,78 @@ class Parameters
 	*/
 	private $argc;
 	private $argv = [];
-	private $error;
-	private $vhostDir = "/var/www/";
-	private $vhostDirExists = TRUE;
-	private $projectDir;
-	private $fullPathProjectDir;
-	private $projectConFile;
-	private $defaultConFile = "/etc/apache2/sites-available/000-default.conf";
-    private $apacheConFile = "/etc/apache2/apache2.conf";
-    private $hostsFile = "/etc/hosts";
-	private $domainName;
-	private $vhostIp = "127.0.0.1";
-	private $bootstrapUrl;
-	private $save = FALSE;
-	private $load = FALSE;
-	private $show = FALSE;
-	private $delete = FALSE;
-	private $saveFile;
+	protected $scriptDir;
+	public $error;
+	public $vhostDir = "/var/www/";
+	public $vhostDirExists = TRUE;
+	public $projectDir;
+	public $fullPathProjectDir;
+	public $projectConFile;
+	public $defaultConFile = "/etc/apache2/sites-available/000-default.conf";
+    public $apacheConFile = "/etc/apache2/apache2.conf";
+    public $hostsFile = "/etc/hosts";
+	public $domainName;
+	public $vhostIp = "127.0.0.1";
+	public $bootstrapUrl;
+	public $isSave = FALSE;
+	public $isLoad = FALSE;
+	public $isDelete = FALSE;
+	public $saveFile;
 
 	/*
 	*
-	* Sets $argc and $argv.
+	* Sets $argc, $argv and $scriptDir.
 	* Check if the --help parameter was passed.
-	* Check if the --load-config parameter was passed.
-	* Check if the --show-save-files parameter was passed.
+	* Check if the --load-host parameter was passed.
+	* Check if the --show-saved-hosts parameter was passed.
 	* Check if the --delete-host parameter was passed.
 	* Check if the required -D parameter was passed in.
 	*
 	* @param int $argc is the the number of arguments passed in.
 	* @param array $argv is an array of the arguments passed in.
-	* @param array $dir the directory path that avhs.php is being executed from..
+	* @param array $scriptDir is the directory of avhs.php.
 	* @return void
 	*
 	*/
-	public function __construct($argc, $argv) {
+	public function __construct($argc, $argv, $scriptDir) {
 	    $this->argc = $argc;
 	    $this->argv = $argv;
+	    $this->scriptDir = $scriptDir;
 
 		// Check if specified parameters were passed in.
 		$domainSet = FALSE;
 		while($param = current($argv)) {
 		    $arg = next($argv);
 		    
-		    // Check for the help parameter
 			if(strpos($param, "--help") !== FALSE) {
 			    $this->helpMsg();
+			    exit;
 			}
-			
-		    // Check for the load parameter
-			if(strpos($param, "--load-config") !== FALSE) {
-				$this->setLoad(TRUE);
+			if(strpos($param, "--show-saved-hosts") !== FALSE) {
+				$this->showSavedConFiles();
+				exit;
+			}
+			if(strpos($param, "--load-host") !== FALSE) {
+				$this->setIsLoad(TRUE);
 				$this->setSaveFile($arg);
 			}
-			
-		    // Check for the show parameter
-			if(strpos($param, "--show-save-files") !== FALSE) {
-				$this->setShow(TRUE);
-			}
-			
-		    // Check for the delete parameter
 			if(strpos($param, "--delete-host") !== FALSE) {
-				$this->setDelete(TRUE);
+				$this->setIsDelete(TRUE);
 				$this->setSaveFile($arg);
 			}
-			
-		    // Check for the domain parameter
 			if(strpos($param, "-D") !== FALSE) {
 				$domainSet = TRUE;
 			}
 		}
 		
-		// Check if the user has not set a domain name set and load or delete is not set to TRUE.
-		if(!$domainSet && !$this->load && !$this->show && !$this->delete) {
+		// Check if domain, show, load or delete were set and exit if not.
+		if(!$domainSet && !$this->isLoad && !$this->isDelete) {
 			die("\nYou must include a domain name using the -D parameter\nTry 'avhs.php --help' for more information.\n");
 		}
 	}
 	
-	public function getArgc() {
-  		return $this->argc;
-	}
-	
 	private function setArgc($num) {
   		$this->argc = $num  ;
-	}
-	
-	public function getArgv() {
-  		return $this->argv;
 	}
 	
 	private function setArgv($arg) {
@@ -143,136 +136,64 @@ class Parameters
   		$this->argv = [];
 	}
 	
-	public function getError() {
-  		return $this->error;
-	}
-	
-	private function setError($error) {
+	protected function setError($error) {
   		$this->error = "\033[91m$error\033[0m\n";
-	}
-	
-	public function getVhostDir() {
-  		return $this->vhostDir;
 	}
 	
 	private function setVhostDir($dir) {
   		$this->vhostDir = $dir;
 	}
 	
-	public function getVhostDirExists() {
-  		return $this->vhostDirExists;
-	}
-	
 	private function setVhostDirExists($bool) {
   		$this->vhostDirExists = $bool;
-	}
-	
-	public function getProjectDir() {
-  		return $this->projectDir;
 	}
 	
 	private function setProjectDir($dir) {
   		$this->projectDir = $dir;
 	}
 	
-	public function getFullPathProjectDir() {
-  		return $this->fullPathProjectDir;
-	}
-	
 	private function setFullPathProjectDir($dir) {
   		$this->fullPathProjectDir = $dir;
-	}
-	
-	public function getProjectConFile() {
-  		return $this->projectConFile;
 	}
 	
 	private function setProjectConFile($file) {
   		$this->projectConFile = $file;
 	}
 	
-	public function getDefaultConFile() {
-  		return $this->defaultConFile;
-	}
-	
 	private function setDefaultConFile($file) {
   		$this->defaultConFile = $file;
-	}
-	
-	public function getApacheConFile() {
-  		return $this->apacheConFile;
 	}
 	
 	private function setApacheConFile($file) {
   		$this->apacheConFile = $file;
 	}
 	
-	public function getHostsFile() {
-  		return $this->hostsFile;
-	}
-	
 	private function setHostsFile($file) {
   		$this->hostsFile = $file;
-	}
-	
-	public function getDomainName() {
-  		return $this->domainName;
 	}
 	
 	private function setDomainName($domain) {
   		$this->domainName = $domain;
 	}
 	
-	public function getVhostIp() {
-  		return $this->vhostIp;
-	}
-	
 	private function setVhostIp($ip) {
   		$this->vhostIp = $ip;
-	}
-	
-	public function getBootstrapUrl() {
-  		return $this->bootstrapUrl;
 	}
 	
 	private function setBootstrapUrl($url) {
   		$this->bootstrapUrl = $url;
 	}
 	
-	public function getSave() {
-  		return $this->save;
+	private function setIsSave($bool) {
+  		$this->isSave = $bool;
 	}
 	
-	private function setSave($bool) {
-  		$this->save = $bool;
+	private function setIsLoad($bool) {
+  		$this->isLoad = $bool;
 	}
 	
-	public function getLoad() {
-  		return $this->load;
-	}
-	
-	private function setLoad($bool) {
-  		$this->load = $bool;
-	}
-	
-	public function getShow() {
-  		return $this->show;
-	}
-	
-	private function setShow($bool) {
-  		$this->show = $bool;
-	}
-	
-	public function getDelete() {
-  		return $this->delete;
-	}
-	
-	private function setDelete($bool) {
-  		$this->delete = $bool;
-	}
-	
-	public function getSaveFile() {
-  		return $this->saveFile;
+	private function setIsDelete($bool) {
+  		$this->isDelete = $bool;
 	}
 	
 	private function setSaveFile($file) {
@@ -285,7 +206,7 @@ class Parameters
 	*
 	* @return FALSE if there was an error, TRUE otherwise.
 	*/
-	public function setParams() {
+	public function setConfig() {
         displayMsg("Checking the input parameters", "93");
         
         for($i = 1; $i <= $this->argc - 1; $i += 2) {
@@ -436,8 +357,8 @@ class Parameters
                 // Set the Bootstrap URL.
                 $this->setBootstrapUrl($arg);
             }
-            else if($param == "--save-config") {
-                $this->setSave(TRUE);
+            else if($param == "--save-host") {
+                $this->setIsSave(TRUE);
                 $i--;
             }
             else {
@@ -511,22 +432,53 @@ class Parameters
 	* @param string $pDir is the path of projects directory and any nested directories.
 	* @return void
 	*/
-    private function joinPath($vDir, $pDir) {
-        if($vDir[strlen($vDir)-1] != "/" && $pDir[0] != "/") {
-            // Add a '/' to the end of the virtual directory path.
-            $this->setVhostDir("$vDir/");
-        }
-        else if($vDir[strlen($vDir)-1] == "/" && $pDir[0] == "/") {
-            // Remove the '/' form the end of the virtual directory path.
-            $this->setVhostDir(substr($vDir, 0, -1));
+    protected function joinPath($vDir, $pDir) {
+        // Check if the virtual hosts directory ends with '/' and add it if not.
+        if($vDir[strlen($vDir)-1] != "/") {
+            $vDir .= "/";
         }
         
-        return($this->vhostDir . $this->projectDir);
+        // Check if the project directory begins with '/' and remove it if so.
+        if($pDir[0] == "/") {
+            $pDir = substr($pDir, 1, strlen($pDir)-1);
+        }
+        
+        // Check if the project directory ends with '/' and remove it.
+        if($pDir[strlen($pDir)-1] == "/") {
+            $pDir = substr($pDir, 0, -1);
+        }
+        $fullPath = $vDir.$pDir;
+        $this->setVhostDir($vDir);
+        $this->setProjectDir($pDir);
+        
+        return($fullPath);
     }
+	
+	/**
+	* Takes ownership of a file or directory.
+	*
+	* @param string $path is the file or directory to take ownership of.
+	* @param string $type either 'directory' or 'file'.
+	* @return FALSE if there was an error, TRUE otherwise.
+	*/
+	public function takeOwnership($path, $type) {
+        // Change the directory owner to the current user.
+        if(!chown($path, $_SERVER['SUDO_USER'])) {
+            $this->setError("Error setting the $type owner for '$path'");
+            return FALSE;
+        }
+        // Change the directory group to the current user.
+        if(!chgrp($path, $_SERVER['SUDO_USER'])) {
+            $this->setError("Error setting the $type group for '$path'");
+            return FALSE;
+        }
+        return TRUE;
+	}
     
     // Save the new hosts configurations.
-    public function saveConfig($avhsDir) {
-        $saveDir = "$avhsDir/saved/";
+    public function saveConfig() {
+        displayMsg("Saving the new hosts configurations", "93");
+        $saveDir = $this->scriptDir."/saved/";
         $configFile = $saveDir . $this->domainName . ".conf";
         
         // Check if the saved directory exists and create it if not.
@@ -536,14 +488,8 @@ class Parameters
                 return FALSE;
             }
         
-            // Change the config directory owner to the current user.
-            if(!chown("$saveDir", $_SERVER['SUDO_USER'])) {
-                $this->setError("Error setting the file owner for '$configFile'");
-                return FALSE;
-            }
-            // Change the config directory group to the current user.
-            if(!chgrp("$saveDir", $_SERVER['SUDO_USER'])) {
-                $this->setError("Error setting the file group for '$configFile'");
+            // Take Ownership of the saved config directory.
+            if(!$this->takeOwnership($saveDir, "directory")) {
                 return FALSE;
             }
         }
@@ -563,36 +509,52 @@ class Parameters
             $content .= "\n-B=" . $this->bootstrapUrl;
         }
         
-        // Create the edited config file.
+        // Create the saved config file.
         if(file_put_contents($configFile, $content) === FALSE) {
             $this->setError("Error saving the configurations to file '$configFile'");
             return FALSE;
         }
         
-        // Change the config file owner to the current user.
-        if(!chown($configFile, $_SERVER['SUDO_USER'])) {
-            $this->setError("Error setting the file owner for '$configFile'");
+        // Take Ownership of the config file.
+        if(!$this->takeOwnership($configFile, "file")) {
             return FALSE;
         }
-        // Change the config file group to the current user.
-        if(!chgrp($configFile, $_SERVER['SUDO_USER'])) {
-            $this->setError("Error setting the file group for '$configFile'");
-            return FALSE;
-        }
+        
+        displayMsg("The hosts configurations were successfully saved", "32");
         return TRUE;
     }
     
-    // Load the hosts configurations for a saved file.
-    public function loadConfig($avhsDir) {
-        $savedConFile = "$avhsDir/saved/" . $this->saveFile . ".conf";
+    // Show all the saved config file.
+    private function showSavedConFiles() {
+        $saveDir = $this->scriptDir."/saved/";
         
-        // Check if the saved config file exists.
-        if(!file_exists($savedConFile)) {
-            $this->setError("Error '$savedConFile' does not exist");
-            return FALSE;
+        // Check if saved directory exists.
+        displayMsg("Saved configuration files:", "97");
+        if(!file_exists($saveDir)) {
+            displayMsg("No saved config files", "97");
+            exit;
         }
         
-        // Get the saved config file contents.
+        $fileList = array_diff(scandir($saveDir), ["..", "."]);
+        
+        // List the file names without .conf
+        foreach($fileList as $file) {
+            displayMsg("\t" . substr($file, 0, strpos($file, ".conf")), "97");
+        }
+    }
+    
+    // Load the hosts configurations for a saved file.
+    public function loadHost() {
+        displayMsg("Loading the hosts configurations", "93");
+        $savedConFile = $this->scriptDir."/saved/" . $this->saveFile . ".conf";
+        
+        // Check if the saved config file exists
+	    if(!file_exists($savedConFile)) {
+            $this->setError("Error the file '$savedConFile' does not exist");
+            return FALSE;
+	    }
+        
+        // Get the contents as an array of lines.
 	    if(!$lines = file($savedConFile, FILE_IGNORE_NEW_LINES)) {
             $this->setError("Error getting the contents of the saved config file '$savedConFile'");
             return FALSE;
@@ -600,8 +562,8 @@ class Parameters
 	    
 	    // Reset the arguments array.
         $this->unsetArgv();
-        // Set a dummy for the first element.
-        $this->setArgv("dummy");
+        // Set a dummy value for the first element.
+        $this->setArgv("--load-host");
 	    
 	    // Set Parameter properties for each line in the saved config file.
 	    foreach($lines as $line) {
@@ -620,74 +582,26 @@ class Parameters
         $this->setArgc($num);
         
         // Load the saved configurations.
-        if(!$this->setParams()) {
+        if(!$this->setConfig()) {
             return FALSE;
         }
         
+        displayMsg("The hosts configurations were successfully loaded", "32");
 	    return TRUE;
-    }
-    
-    // Show all the saved config file.
-    public function showSavedConFiles($avhsDir) {
-        $saveDir = "$avhsDir/saved/";
-        
-        // Check if saved directory exists.
-        if(!file_exists($saveDir)) {
-            echo "No saved config files\n";
-            exit;
-        }
-        
-        $fileList = array_diff(scandir($saveDir), ["..", "."]);
-        
-        // List the file names without .conf
-        foreach($fileList as $file) {
-            echo substr($file, 0, strpos($file, ".conf"))."\n";
-        }
-        
-        exit;
-    }
-    
-    // Delete the host
-    public function deleteHost() {
-        
-    }
-    
-    // Display a message with the configuration the user has chosen.
-    public function configMsg() {
-        displayMsg("A new virtual host will be set up with these configurations:", "97");
-        displayMsg("\tVirtual hosts directory: " . $this->getVhostDir(), "97");
-        displayMsg("\tProject directory: " . $this->getProjectDir(), "97");
-        displayMsg("\tFull project path: " . $this->getFullPathProjectDir(), "97");
-        displayMsg("\tProject config file: " . $this->getProjectConFile(), "97");
-        displayMsg("\tDefault config file: " . $this->getDefaultConFile(), "97");
-        displayMsg("\tApache config file: " . $this->getApacheConFile(), "97");
-        displayMsg("\tHosts file: " . $this->getHostsFile(), "97");
-        displayMsg("\tDomain name: " . $this->getDomainName(), "97");
-        displayMsg("\tVirtual host IP: " . $this->getVhostIp(), "97");
-        displayMsg("\tBootstrap URL: " . $this->getBootstrapUrl(), "97");
-
-        // Ask the user if they want to continue with the configurations.
-        $ans = "";
-        while($ans != "Y") {
-            $ans = strtoupper(readline("Do you want to continue with these configurations Y or N?"));
-            if($ans == "N") {
-                die("\033[91mThe virtual host setup was aborted\033[0m\n");
-            }
-        }
     }
 
     // Display the --help message.
     private function helpMsg() {
-        displayMsg("Usage: avhs -D DOMAIN [OPTIONS] ARGUMENT --save-config", "97");
-        displayMsg("            [--load-config | --delete-config] FILE", "97");
-        displayMsg("            [--show-save-files]", "97");
+        displayMsg("Usage: avhs.php -D DOMAIN [OPTIONS] ARGUMENT --save-host", "97");
+        displayMsg("                [--load-host | --delete-host] FILE", "97");
+        displayMsg("                [--show-saved-hosts]", "97");
         displayMsg("Creates a new virtual host for Apache.\n", "97");
-        displayMsg("The -D option and a valid DOMAIN name is required.", "97");
-        displayMsg("If no other options are passed in the virtual host", "97");
+        displayMsg("The -D option and a valid DOMAIN name is required when creating", "97");
+        displayMsg("a new host. If no other options are passed in the virtual host", "97");
         displayMsg("will be set up with the default options.\n", "97");
         
         displayMsg("  -P, --project-directory\tpath of the project driectory and any nested", "97");
-        displayMsg("\t\t\t\tdirectories. eg example/public_html/", "97");
+        displayMsg("\t\t\t\tdirectories. eg example.com/public_html", "97");
         displayMsg("\t\t\t\tdefault is the same as DOMAIN", "97");
         displayMsg("  -V, --vhosts-directory\tfull path of the virtual hosts directory.", "97");
         displayMsg("\t\t\t\teg /home/user/vhosts/.", "97");
@@ -707,12 +621,36 @@ class Parameters
         displayMsg("\t\t\t\tdefault is 127.0.0.1", "97");
         displayMsg("  -B, --install-bootstrap\turl of a zip file containing compiled Bootstrap", "97");
         displayMsg("\t\t\t\tfiles.", "97");
-        displayMsg("      --save-config\t\tsave the configurations to a file with the name", "97");
-        displayMsg("\t\t\t\tDOMAIN.conf", "97");
-        displayMsg("      --load-config\t\treload a site using the configurations stored in", "97");
-        displayMsg("\t\t\t\tthe saved file", "97");
-        displayMsg("      --show-save-files\t\tshow a lists of all the saved config files", "97");
+        displayMsg("      --save-host\t\tsave the hosts configurations to a file with", "97");
+        displayMsg("\t\t\t\tthe name DOMAIN.conf", "97");
+        displayMsg("      --show-saved-hosts\tshow a lists of all the saved hosts files", "97");
+        displayMsg("      --load-host\t\treload a host using the saved config file", "97");
+        displayMsg("      --delete-host\t\tdelete a host using the saved config file", "97");
         exit;
+    }
+    
+    // Display a message with the configuration the user has chosen.
+    public function configMsg() {
+        displayMsg("A new virtual host will be set up with these configurations:", "97");
+        displayMsg("\tVirtual hosts directory: " . $this->vhostDir, "97");
+        displayMsg("\tProject directory: " . $this->projectDir, "97");
+        displayMsg("\tFull project path: " . $this->fullPathProjectDir, "97");
+        displayMsg("\tProject config file: " . $this->projectConFile, "97");
+        displayMsg("\tDefault config file: " . $this->defaultConFile, "97");
+        displayMsg("\tApache config file: " . $this->apacheConFile, "97");
+        displayMsg("\tHosts file: " . $this->hostsFile, "97");
+        displayMsg("\tDomain name: " . $this->domainName, "97");
+        displayMsg("\tVirtual host IP: " . $this->vhostIp, "97");
+        displayMsg("\tBootstrap URL: " . $this->bootstrapUrl, "97");
+
+        // Ask the user if they want to continue with the configurations.
+        $ans = "";
+        while($ans != "Y") {
+            $ans = strtoupper(readline("Do you want to continue with these configurations Y or N?"));
+            if($ans == "N") {
+                die("\033[91mThe virtual host setup was aborted\033[0m\n");
+            }
+        }
     }
 }
 
