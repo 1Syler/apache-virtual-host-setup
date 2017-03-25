@@ -1,7 +1,7 @@
 #!/usr/bin/php
 <?php
 // Include the required files.
-require("includes/class.parameters.php");
+require("includes/class.vhost.config.php");
 require("includes/class.vhost.php");
 require("includes/functions.php");
 
@@ -16,7 +16,7 @@ $avhsDir = dirname(__FILE__);
 // Create a new Vhost object.
 $vhost = new Vhost($argc, $argv, $avhsDir);
 
-// Load the configuration form the saved file.
+// Load the configuration from the saved file.
 if($vhost->isLoad) {
     if(!$vhost->loadHost()) {
         die($vhost->error);
