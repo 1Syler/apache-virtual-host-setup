@@ -3,7 +3,6 @@
 // Include the required files.
 require("includes/class.vhost.config.php");
 require("includes/class.vhost.php");
-require("includes/functions.php");
 
 // Check if the script is running as root.
 if (posix_getuid() != 0) {
@@ -95,16 +94,16 @@ if($vhost->bootstrapUrl !== NULL) {
 // Copy the template file to the new virtual host.
 $projectPath = $vhost->fullPathProjectDir . "/index.html";
 if(!copy($template, $projectPath)) {
-    displayMsg("Error copying template file to the new host", "91");
+    $vhost->displayMsg("Error copying template file to the new host", "91");
 }
 else {
     $vhost->takeOwnership($projectPath, "file");
 }
 
 // Enable the new virtual host and restart apache.
-displayMsg("Enabling the new virtual host and reloading the server", "93");
+$vhost->displayMsg("Enabling the new virtual host and reloading the server", "93");
 exec("a2ensite " . pathinfo($vhost->projectConFile, PATHINFO_FILENAME));
 exec("service apache2 restart");
-displayMsg("\nThe new host is enabled to access the site go to http://" . $vhost->domainName, "93");
+$vhost->displayMsg("\nThe new host is enabled to access the site go to http://" . $vhost->domainName, "93");
 exit;
 ?>

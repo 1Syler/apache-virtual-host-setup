@@ -1,6 +1,6 @@
 <?php
 /**
- * class.parameters.php
+ * class.vhost.config.php
  *
  * Checks and validates input parameters.
  *
@@ -26,17 +26,17 @@ class VhostConfig
     * @var bool   $vhostDirExists is set to FALSE when the virtual host directory doesn't exist.
     *             The default is set to TRUE.
     * @var string $projectDir is the name of the project directory and any nested directories to create in $vhostDir.
-    *             This can be set by the user the default is $projectName.
-    * @var string $projectConFile is the full path of the projects .conf file.
-    *             This can be set by the user, the default is /etc/apache2/sites-available/[$projectDir].conf.
+    *             This can be set by the user the default is $domainName.
+    * @var string $projectConFile is the full path of the projects config file.
+    *             This can be set by the user, the default is /etc/apache2/sites-available/$domainName.conf.
     * @var string $defaultConFile is the full path of the apache default vhost config file used to create the project config file.
     *             This can be set by the user, the default is /etc/apache2/sites-available/000-default.conf.
-    * @var string $apacheConFile is the full path the apache default config file used to create access for the $vhostDir.
+    * @var string $apacheConFile is the full path the apache default config file used to create access for $vhostDir.
     *             This can be set by the user, the default is /etc/apache2/apache2.conf.
     * @var string $hostsFile is the full path of the systems hosts file.
     *             This can be set by the user, the default is /etc/hosts.
     * @var string $domainName is the domain name for the new project, it is also used to set other variable defaults.
-    *             This must be set by the user, it will set $projectDir, $projectConFile if no arguments are passed in.
+    *             This must be set by the user. It will set the defaults for $projectDir and $projectConFile if no arguments are passed in.
     * @var string $vhostIp is the IP address of the vhost used in the hosts file.
     *             This can be set by the user, the default is 127.0.0.1.
     * @var string $bootstrapUrl is the URL of the Bootstrap zip file to download.
@@ -45,12 +45,9 @@ class VhostConfig
     *             The default is set to FALSE.
     * @var bool   $load is set to TRUE when the user opts to load the config.
     *             The default is set to FALSE.
-    * @var bool   $load is set to TRUE when the user opts to load the config.
+    * @var bool   $delete is set to TRUE when the user opts to delete the config.
     *             The default is set to FALSE.
-    * @var bool   $delete is set to TRUE when the user opts to show the saved configuration files.
-    *             The default is set to FALSE.
-    * @var string $saveFile is the name of the saved config minus the .conf extension.
-    *
+    * @var string $saveFile is the name of the saved vhost config file minus the .conf extension.
     */
     private $argc;
     private $argv = [];
@@ -76,14 +73,14 @@ class VhostConfig
     *
     * Sets $argc, $argv and $scriptDir.
     * Check if the --help parameter was passed.
-    * Check if the --load-host parameter was passed.
     * Check if the --show-saved-hosts parameter was passed.
+    * Check if the --load-host parameter was passed.
     * Check if the --delete-host parameter was passed.
     * Check if the required -D parameter was passed in.
     *
     * @param int $argc is the the number of arguments passed in.
     * @param array $argv is an array of the arguments passed in.
-    * @param array $scriptDir is the directory of avhs.php.
+    * @param array $scriptDir is the directory of the calling script avhs.php.
     * @return void
     *
     */
@@ -118,7 +115,7 @@ class VhostConfig
             }
         }
         
-        // Check if domain, show, load or delete were set and exit if not.
+        // Check if domain, show, load or delete were set and exit with a message if not.
         if(!$domainSet && !$this->isLoad && !$this->isDelete) {
             die("\nYou must include a domain name using the -D parameter\nTry 'avhs.php --help' for more information.\n");
         }
@@ -138,6 +135,10 @@ class VhostConfig
     
     protected function setError($error) {
         $this->error = "\033[91m$error\033[0m\n";
+    }
+    
+    public function displayMsg($message, $color) {
+        echo "\033[" . $color . "m$message\033[0m\n";
     }
     
     private function setVhostDir($dir) {
@@ -207,7 +208,7 @@ class VhostConfig
     * @return FALSE if there was an error, TRUE otherwise.
     */
     public function setConfig() {
-        displayMsg("Checking the input parameters", "93");
+        $this->displayMsg("Checking the input parameters", "93");
 
         for($i = 1; $i <= $this->argc - 1; $i += 2) {
             // Set the parameter variable.
@@ -223,6 +224,7 @@ class VhostConfig
             
             // Check for all the valid parameters.
             if($param == "-P" || $param == "--project-directory") {
+                // Check if the argument is empty or begins with a '-'.
                 if(!$this->checkArg($param, $arg, "invalid project directory")) {
                     return FALSE;
                 }
@@ -235,9 +237,8 @@ class VhostConfig
                     return FALSE;
                 }
                 
-                // Slice the virtual hosts directory off the path.
-                $dir = dirname($arg);
                 // Check if the folder containing the virtual hosts directory exists.
+                $dir = dirname($arg);
                 if(!file_exists($dir)) {
                     $this->setError("Error '$dir' does not exist");
                     return FALSE;
@@ -252,7 +253,7 @@ class VhostConfig
                 $this->setVhostDir($arg);
             }
             else if($param == "-p" || $param == "--project-config-file") {
-                if(!$this->checkArg($param, $arg, "invalid config file")) {
+                if(!$this->checkArg($param, $arg, "invalid project config file")) {
                     return FALSE;
                 }
                 
@@ -262,9 +263,8 @@ class VhostConfig
                     return FALSE;
                 }
                 
-                // Slice the file name off the path.
+                // Check if the config files directory exists.
                 $configDir = dirname($arg);
-                // Check if the files config directory exists.
                 if(!file_exists($configDir)) {
                     $this->setError("Error '$configDir' does not exist");
                     return FALSE;
@@ -306,7 +306,7 @@ class VhostConfig
                     return FALSE;
                 }
                 
-                // Checks if the apache config file exists.
+                // Checks if the hosts file exists.
                 if(!file_exists($arg)) {
                     $this->setError("Error '$arg' does not exist");
                     return FALSE;
@@ -334,7 +334,7 @@ class VhostConfig
                     return FALSE;
                 }
                 
-                // Check if the IP address is valid.
+                // Check if the virtual host IP address is valid.
                 if(!filter_var($arg, FILTER_VALIDATE_IP)) {
                     $this->setError("Error '$arg' is not a valid IP address");
                     return FALSE;
@@ -348,7 +348,7 @@ class VhostConfig
                     return FALSE;
                 }
                 
-                // Check if the URL is valid.
+                // Check if the Bootstrap URL is valid.
                 if(!filter_var($arg, FILTER_VALIDATE_URL)) {
                     $this->setError("Error '$arg' is not a valid URL");
                     return FALSE;
@@ -392,7 +392,7 @@ class VhostConfig
             }
         }
         
-        // Check if domain already in hosts file.
+        // Check if the domain name is already in hosts file.
         $content = file_get_contents($this->hostsFile);
         $domain = "/\b" . $this->domainName . "\b/i";
         if(preg_match($domain, $content)) {
@@ -400,12 +400,12 @@ class VhostConfig
             return FALSE;
         }
         
-        displayMsg("Input parameters all look ok", "32");
+        $this->displayMsg("Input parameters all look ok", "32");
         return TRUE;
     }
     
     /**
-    * Checks that the parameters argument is not empty and does't begin with a '-'.
+    * Checks that the parameters argument is not empty and does not begin with a '-'.
     *
     * @param string $parameter is the parameter of the argument that is being checked.
     * @param string $arg is argument that is being checked.
@@ -426,7 +426,7 @@ class VhostConfig
     }
     
     /**
-    * Joins two directory paths together.
+    * Joins the virtual hosts and project directory paths together.
     *
     * @param string $vDir is the path of virtual hosts directory.
     * @param string $pDir is the path of projects directory and any nested directories.
@@ -475,15 +475,19 @@ class VhostConfig
         return TRUE;
     }
     
-    // Save the new hosts configurations.
+    /**
+    * Save the new hosts configurations to a file.
+    *
+    * @return FALSE if there was an error, TRUE otherwise.
+    */
     public function saveConfig() {
-        displayMsg("Saving the new hosts configurations", "93");
+        $this->displayMsg("Saving the new hosts configurations", "93");
         $saveDir = $this->scriptDir."/saved/";
         $configFile = $saveDir . $this->domainName . ".conf";
         
         // Check if the saved directory exists and create it if not.
-        if(!file_exists("$saveDir")) {
-            if(!mkdir("$saveDir")) {
+        if(!file_exists($saveDir)) {
+            if(!mkdir($saveDir)) {
                 $this->setError("Error creating the saved config directory");
                 return FALSE;
             }
@@ -520,37 +524,18 @@ class VhostConfig
             return FALSE;
         }
         
-        displayMsg("The hosts configurations were successfully saved", "32");
+        $this->displayMsg("The hosts configurations were successfully saved", "32");
         return TRUE;
-    }
-    
-    // Show all the saved config file.
-    private function showSavedConFiles() {
-        $saveDir = $this->scriptDir."/saved/";
-        
-        // Check if saved directory exists.
-        displayMsg("Saved configuration files:", "97");
-        if(!file_exists($saveDir)) {
-            displayMsg("No saved config files", "97");
-            exit;
-        }
-        
-        $fileList = array_diff(scandir($saveDir), ["..", "."]);
-        
-        // List the file names without .conf
-        foreach($fileList as $file) {
-            displayMsg("\t" . substr($file, 0, strpos($file, ".conf")), "97");
-        }
     }
     
     // Load the hosts configurations for a saved file.
     public function loadHost() {
-        displayMsg("Loading the hosts configurations", "93");
+        $this->displayMsg("Loading the hosts configurations", "93");
         $savedConFile = $this->scriptDir."/saved/" . $this->saveFile . ".conf";
         
         // Check if the saved config file exists
         if(!file_exists($savedConFile)) {
-            $this->setError("Error the file '$savedConFile' does not exist");
+            $this->setError("Error the saved config file '$savedConFile' does not exist");
             return FALSE;
         }
         
@@ -586,62 +571,92 @@ class VhostConfig
             return FALSE;
         }
         
-        displayMsg("The hosts configurations were successfully loaded", "32");
+        $this->displayMsg("The hosts configurations were successfully loaded", "32");
         return TRUE;
     }
-
-    // Display the --help message.
-    private function helpMsg() {
-        displayMsg("Usage: avhs.php -D DOMAIN [OPTIONS] ARGUMENT --save-host", "97");
-        displayMsg("                [--load-host | --delete-host] FILE", "97");
-        displayMsg("                [--show-saved-hosts]", "97");
-        displayMsg("Creates a new virtual host for Apache.\n", "97");
-        displayMsg("The -D option and a valid DOMAIN name is required when creating", "97");
-        displayMsg("a new host. If no other options are passed in the virtual host", "97");
-        displayMsg("will be set up with the default options.\n", "97");
+    
+    /**
+    * Show all the saved host files.
+    *
+    * @return None.
+    */
+    private function showSavedConFiles() {
+        $saveDir = $this->scriptDir."/saved/";
         
-        displayMsg("  -P, --project-directory\tpath of the project driectory and any nested", "97");
-        displayMsg("\t\t\t\tdirectories. eg example.com/public_html", "97");
-        displayMsg("\t\t\t\tdefault is the same as DOMAIN", "97");
-        displayMsg("  -V, --vhosts-directory\tfull path of the virtual hosts directory.", "97");
-        displayMsg("\t\t\t\teg /home/user/vhosts/.", "97");
-        displayMsg("\t\t\t\tdefault is /var/www/", "97");
-        displayMsg("  -p, --project-config-file\tfull path of the projects config file", "97");
-        displayMsg("\t\t\t\tdefault is", "97");
-        displayMsg("\t\t\t\t/etc/apache2/sites-available/DOMAIN.conf", "97");
-        displayMsg("  -d, --default-config-file\tfull path of the default config file", "97");
-        displayMsg("\t\t\t\tdefault is", "97");
-        displayMsg("\t\t\t\t/etc/apache2/sites-available/000-default.conf", "97");
-        displayMsg("  -a, --apache-config-file\tfull path of the apache config file", "97");
-        displayMsg("\t\t\t\tdefault is /etc/apache2/apache2.conf", "97");
-        displayMsg("  -h, --hosts-file\t\tfull path of the hosts file", "97");
-        displayMsg("\t\t\t\tdefault is /etc/hosts", "97");
-        displayMsg("  -D, --domain-name\t\tthe name of the DOMAIN", "97");
-        displayMsg("  -v, --vhost-ip\t\tthe ip address of the virtual host", "97");
-        displayMsg("\t\t\t\tdefault is 127.0.0.1", "97");
-        displayMsg("  -B, --install-bootstrap\turl of a zip file containing compiled Bootstrap", "97");
-        displayMsg("\t\t\t\tfiles.", "97");
-        displayMsg("      --save-host\t\tsave the hosts configurations to a file with", "97");
-        displayMsg("\t\t\t\tthe name DOMAIN.conf", "97");
-        displayMsg("      --show-saved-hosts\tshow a lists of all the saved hosts files", "97");
-        displayMsg("      --load-host\t\treload a host using the saved config file", "97");
-        displayMsg("      --delete-host\t\tdelete a host using the saved config file", "97");
-        exit;
+        // Check if saved directory exists.
+        $this->displayMsg("Saved configuration files:", "97");
+        if(!file_exists($saveDir)) {
+            $this->displayMsg("No saved config files", "97");
+            exit;
+        }
+        
+        $fileList = array_diff(scandir($saveDir), ["..", "."]);
+        
+        // List the file names without .conf
+        foreach($fileList as $file) {
+            $this->displayMsg("\t" . substr($file, 0, strpos($file, ".conf")), "97");
+        }
     }
     
-    // Display a message with the configuration the user has chosen.
+    /**
+    * Display the --help message.
+    *
+    * @return None.
+    */
+    private function helpMsg() {
+        $this->displayMsg("Usage: avhs.php -D DOMAIN [OPTIONS] ARGUMENT --save-host", "97");
+        $this->displayMsg("                [--load-host | --delete-host] FILE", "97");
+        $this->displayMsg("                [--show-saved-hosts]", "97");
+        $this->displayMsg("Creates a new virtual host for Apache.\n", "97");
+        $this->displayMsg("The -D option and a valid DOMAIN name is required when creating", "97");
+        $this->displayMsg("a new host. If no other options are passed in the virtual host", "97");
+        $this->displayMsg("will be set up with the default options.\n", "97");
+        
+        $this->displayMsg("  -P, --project-directory\tpath of the project driectory and any nested", "97");
+        $this->displayMsg("\t\t\t\tdirectories. eg example.com/public_html", "97");
+        $this->displayMsg("\t\t\t\tdefault is the same as DOMAIN", "97");
+        $this->displayMsg("  -V, --vhosts-directory\tfull path of the virtual hosts directory.", "97");
+        $this->displayMsg("\t\t\t\teg /home/user/vhosts/.", "97");
+        $this->displayMsg("\t\t\t\tdefault is /var/www/", "97");
+        $this->displayMsg("  -p, --project-config-file\tfull path of the projects config file", "97");
+        $this->displayMsg("\t\t\t\tdefault is", "97");
+        $this->displayMsg("\t\t\t\t/etc/apache2/sites-available/DOMAIN.conf", "97");
+        $this->displayMsg("  -d, --default-config-file\tfull path of the default config file", "97");
+        $this->displayMsg("\t\t\t\tdefault is", "97");
+        $this->displayMsg("\t\t\t\t/etc/apache2/sites-available/000-default.conf", "97");
+        $this->displayMsg("  -a, --apache-config-file\tfull path of the apache config file", "97");
+        $this->displayMsg("\t\t\t\tdefault is /etc/apache2/apache2.conf", "97");
+        $this->displayMsg("  -h, --hosts-file\t\tfull path of the hosts file", "97");
+        $this->displayMsg("\t\t\t\tdefault is /etc/hosts", "97");
+        $this->displayMsg("  -D, --domain-name\t\tthe name of the DOMAIN", "97");
+        $this->displayMsg("  -v, --vhost-ip\t\tthe ip address of the virtual host", "97");
+        $this->displayMsg("\t\t\t\tdefault is 127.0.0.1", "97");
+        $this->displayMsg("  -B, --install-bootstrap\turl of a zip file containing compiled Bootstrap", "97");
+        $this->displayMsg("\t\t\t\tfiles.", "97");
+        $this->displayMsg("      --save-host\t\tsave the hosts configurations to a file with", "97");
+        $this->displayMsg("\t\t\t\tthe name DOMAIN.conf", "97");
+        $this->displayMsg("      --show-saved-hosts\tshow a lists of all the saved hosts files", "97");
+        $this->displayMsg("      --load-host\t\treload a host using the saved config file", "97");
+        $this->displayMsg("      --delete-host\t\tdelete a host using the saved config file", "97");
+    }
+    
+    /**
+    * Display a message with the configuration the user has chosen and ask for comfimation to proceed.
+    *
+    * @return None.
+    */
     public function configMsg() {
-        displayMsg("A new virtual host will be set up with these configurations:", "97");
-        displayMsg("\tVirtual hosts directory: " . $this->vhostDir, "97");
-        displayMsg("\tProject directory: " . $this->projectDir, "97");
-        displayMsg("\tFull project path: " . $this->fullPathProjectDir, "97");
-        displayMsg("\tProject config file: " . $this->projectConFile, "97");
-        displayMsg("\tDefault config file: " . $this->defaultConFile, "97");
-        displayMsg("\tApache config file: " . $this->apacheConFile, "97");
-        displayMsg("\tHosts file: " . $this->hostsFile, "97");
-        displayMsg("\tDomain name: " . $this->domainName, "97");
-        displayMsg("\tVirtual host IP: " . $this->vhostIp, "97");
-        displayMsg("\tBootstrap URL: " . $this->bootstrapUrl, "97");
+        $this->displayMsg("A new virtual host will be set up with these configurations:", "97");
+        $this->displayMsg("\tVirtual hosts directory: " . $this->vhostDir, "97");
+        $this->displayMsg("\tProject directory: " . $this->projectDir, "97");
+        $this->displayMsg("\tFull project path: " . $this->fullPathProjectDir, "97");
+        $this->displayMsg("\tProject config file: " . $this->projectConFile, "97");
+        $this->displayMsg("\tDefault config file: " . $this->defaultConFile, "97");
+        $this->displayMsg("\tApache config file: " . $this->apacheConFile, "97");
+        $this->displayMsg("\tHosts file: " . $this->hostsFile, "97");
+        $this->displayMsg("\tDomain name: " . $this->domainName, "97");
+        $this->displayMsg("\tVirtual host IP: " . $this->vhostIp, "97");
+        $this->displayMsg("\tBootstrap URL: " . $this->bootstrapUrl, "97");
 
         // Ask the user if they want to continue with the configurations.
         $ans = "";
@@ -653,5 +668,4 @@ class VhostConfig
         }
     }
 }
-
 ?>
