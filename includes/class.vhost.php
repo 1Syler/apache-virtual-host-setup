@@ -117,6 +117,7 @@ class Vhost extends VhostConfig
         }
         
         // Find and edit the lines in the default config file.
+        $serverName = $serverAdmin = $documentRoot = FALSE;
         for($i = 0; $i < count($lines); $i++) {
             // Edit the Sever Name.
             if(strpos($lines[$i], "#ServerName") !== FALSE) {
@@ -179,6 +180,7 @@ class Vhost extends VhostConfig
         }
         
         // Check if the virtual hosts directory already has access in the apache config file.
+        $allowed = FALSE;
         for($i = 0; $i < count($lines); $i++) {
             if(strpos($lines[$i], "<Directory ".$this->vhostDir.">") !== FALSE) {
                 $allowed = TRUE;
@@ -196,7 +198,14 @@ class Vhost extends VhostConfig
             for($i = 0; $i < count($lines); $i++) {
                 if(strpos($lines[$i], "</Directory>") !== FALSE) {
                     // Splice the new host lines in the apache config file.
-                    $newlines = ["\n<Directory '".$this->vhostDir."'>", "\tOptions Indexes FollowSymLinks", "\tAllowOverride None", "\tRequire all granted", "</Directory>"];
+                    $newlines = [
+                                 "\n<Directory '".$this->vhostDir."'>", 
+                                 "\tOptions Indexes FollowSymLinks", 
+                                 "\tAllowOverride None", 
+                                 "\tRequire all granted", 
+                                 "</Directory>"
+                                ];
+                                
                     array_splice($lines, $i+1, 0, $newlines);
                     
                     $found = TRUE;
@@ -245,6 +254,7 @@ class Vhost extends VhostConfig
         }
         
         // Find the line number where to insert the new virtual host.
+        $found = FALSE;
         for($i = 0; $i < count($lines); $i++) {
             if($lines[$i] == "") {
                 // Splice the new host lines into the hosts file.
